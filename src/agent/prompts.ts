@@ -1,23 +1,48 @@
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { TextLoader } from "@langchain/classic/document_loaders/fs/text";
+import { PromptTemplate } from "@langchain/core/prompts";
+import { loadMarkdownFile } from "../helpers/index.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-/** Mapping from overview.md heading text to banner_family key. */
-const HEADING_TO_FAMILY: Record<string, string> = {
-  "Announcement Single Banner": "announcement_single",
-  "Announcement Rotate Banner": "announcement_rotate",
-  "Announcement Running Banner": "announcement_running",
-  "Countdown Banner": "countdown",
-  "Free Shipping Banner": "free_shipping",
-  "Email Signup Banner": "email_signup",
-  "Discount Banner": "discount",
-  "Multi Banners Slider": "multi",
+/**
+ * Maps style theme keys to their detail file names (kebab-case, matches directory).
+ */
+export const STYLE_THEME_FILE_MAP: Record<string, string> = {
+  minimal: "minimal",
+  "modern-clean": "modern-clean",
+  "cyberpunk-futuristic": "cyberpunk-futuristic",
+  "vintage-retro": "vintage-retro",
+  "playful-fun": "playful-fun",
+  "dark-mode": "dark-mode",
+  "light-mode": "light-mode",
+  "seasonal-holiday": "seasonal-holiday",
+  "luxury-elegant": "luxury-elegant",
+  "bold-urgent": "bold-urgent",
 };
 
-/** Structured banner type parsed from overview.md. */
+/**
+ * Type mapping from banner_family string to the underlying banner_type and template numeric IDs.
+ * Used by downstream nodes to select the correct Zod schema for validation.
+ */
+export const BANNER_FAMILY_MAP: Record<
+  string,
+  { banner_type: number; template: number }
+> = {
+  announcement_single: { banner_type: 0, template: 0 },
+  announcement_rotate: { banner_type: 1, template: 0 },
+  announcement_running: { banner_type: 2, template: 0 },
+  countdown: { banner_type: 3, template: 0 },
+  free_shipping: { banner_type: 0, template: 3 },
+  email_signup: { banner_type: 1, template: 0 },
+  discount: { banner_type: 1, template: 0 },
+  multi: { banner_type: 3, template: 5 },
+};
+
+// ── Internal types ──────────────────────────────────────────────────────────
+
 interface ParsedBannerType {
   banner_family: string;
   display_name: string;
@@ -25,10 +50,8 @@ interface ParsedBannerType {
   use_cases: string[];
 }
 
-/**
- * Parse the "Detailed breakdown per type" section of banner-types/README.md
- * into an array of structured banner type objects.
- */
+// ── Banner type parsing ────────────────────────────────────────────────────
+
 function parseBannerOverview(mdContent: string): ParsedBannerType[] {
   const detailedStart = mdContent.indexOf("## Detailed breakdown per type");
   if (detailedStart === -1) return [];
@@ -62,21 +85,21 @@ function parseBannerOverview(mdContent: string): ParsedBannerType[] {
         const items = useSection.match(/-\s+\*\*.*?\*\*:\s*(.+)/g);
         if (items) {
           for (const item of items) {
-            useCases.push(
-              item.replace(/^-\s+\*\*.*?\*\*:\s*/, "").trim()
-            );
+            useCases.push(item.replace(/^-\s+\*\*.*?\*\*:\s*/, "").trim());
           }
         }
       }
 
-      return { banner_family: bannerFamily, display_name: heading, description, use_cases: useCases };
+      return {
+        banner_family: bannerFamily,
+        display_name: heading,
+        description,
+        use_cases: useCases,
+      };
     })
     .filter((b): b is ParsedBannerType => b !== null);
 }
 
-/**
- * Build the "Available Banner Types" markdown section from parsed banner data.
- */
 function buildBannerTypesSection(types: ParsedBannerType[]): string {
   return types
     .map((t, i) => {
@@ -93,43 +116,22 @@ function buildBannerTypesSection(types: ParsedBannerType[]): string {
     .join("\n");
 }
 
-/**
- * Build the comma-separated list of all banner_family values for the output format spec.
- */
 function buildFamilyList(types: ParsedBannerType[]): string {
   return types.map((t) => t.banner_family).join(", ");
 }
 
-// ── Shared loader ──────────────────────────────────────────────────────────
+// ── Paths ──────────────────────────────────────────────────────────────────
 
-/**
- * Load a markdown file using LangChain's TextLoader.
- * Returns the raw file content as a string.
- */
-async function loadMarkdownFile(path: string): Promise<string> {
-  const loader = new TextLoader(path);
-  let docs;
-  try {
-    docs = await loader.load();
-  } catch (err) {
-    throw new Error(
-      `Failed to load ${path}: ${err instanceof Error ? err.message : String(err)}`
-    );
-  }
+const DOCS_DIR = join(__dirname, "..", "..", "banner_docs");
+const BANNER_TYPES_DIR = join(DOCS_DIR, "banner-types");
+const STYLE_THEMES_DIR = join(DOCS_DIR, "style-themes");
+const CONFIG_DIR = join(DOCS_DIR, "configuration");
 
-  const doc = docs[0];
-  if (!doc) {
-    throw new Error(`File is empty: ${path}`);
-  }
+// ── Step 1: Banner Type Classification ──────────────────────────────────────
 
-  return doc.pageContent;
-}
+const BANNER_TYPE_OUTPUT_FORMAT = `## Output Format
 
-// ── Static prompt sections (not derived from files) ────────────────────────
-
-const OUTPUT_FORMAT_TEMPLATE = `## Output Format
-
-You MUST respond with ONLY valid JSON in the following format. Do NOT include markdown fences, comments, or any text outside the JSON object.
+You MUST respond with ONLY valid JSON. No markdown fences, comments, or text outside the JSON object.
 
 {
   "action": "classify" | "clarify",
@@ -138,78 +140,57 @@ You MUST respond with ONLY valid JSON in the following format. Do NOT include ma
     "confidence": <float 0.0 to 1.0>,
     "reasoning": "<1-2 sentences explaining why this banner type was chosen>"
   },
-  "style": {
-    "theme": "<one of the 10 themes above, or null>",
-    "theme_description": "<1 sentence describing the visual direction>",
-    "confidence": <float 0.0 to 1.0>
-  },
   "needs_clarification": <boolean>,
   "clarification_questions": ["<question 1>", "<question 2>"]
 }
 
-### When to set action = "classify":
-- You can confidently determine both the banner type AND style theme.
+### When action = "classify":
+- You confidently determined the best banner type.
 - needs_clarification must be false.
 - clarification_questions must be omitted.
 
-### When to set action = "clarify":
-- The user's request is too vague to pick a banner type (e.g., "I want a banner" with no further detail).
-- The user's request doesn't mention any style direction and you cannot infer one.
-- The user's request could plausibly fit multiple banner types equally well.
+### When action = "clarify":
+- The user's request is too vague (e.g., "I want a banner" with no details).
+- Multiple banner types fit equally well and you cannot decide.
 - needs_clarification must be true.
 - Provide 1-3 specific, actionable clarification questions.
-- When action is "clarify", set decision and style fields to null.`;
+- Set decision fields to null.`;
 
-const RULES_SECTION = `## Important Rules
+const BANNER_TYPE_RULES = `## Rules
 
-1. **One banner type, one style theme.** Do not suggest multiple banner types or style mixes.
+1. **One banner type only.** Do not suggest multiple types or combinations.
 2. **Prefer the simplest banner type** that fulfills the user's goal. Don't overcomplicate. For example, if the user wants a single discount message, use "discount" — not "multi" with one slide.
-3. **Don't assume style.** If the user didn't describe any visual preference, set style.theme to null and ask. Don't default to "modern_clean" unless the context strongly implies it.
-4. **For clarification questions**, ask about ONE topic at a time: either banner type OR style, unless both are severely ambiguous. Keep questions concise and actionable.
-5. **Be specific in reasoning.** Instead of "countdown creates urgency", say "Countdown is best because the user wants a flash sale ending in 24 hours" — connect to their actual words.`;
-
-// ── Builders ──────────────────────────────────────────────────────────────
-
-const DOCS_DIR = join(__dirname, "..", "..", "banner_docs");
+3. **Be specific in reasoning.** Instead of "countdown creates urgency", say "Countdown is best because the user wants a flash sale ending in 24 hours" — connect to their actual words.
+4. **Clarify when ambiguous.** If you're unsure, ask focused questions about the user's goal rather than guessing.`;
 
 /**
- * Build the complete system prompt by reading banner type descriptions
- * from banner-types/README.md and style themes from style-themes/README.md
- * using LangChain's TextLoader, then combining them with static output/rule sections.
+ * Build the system prompt for Step 1 — banner type classification.
  *
- * @param overviewPath - Optional custom path to the banner types overview.
- *   Defaults to `<project_root>/banner_docs/banner-types/README.md`.
- * @param styleThemesPath - Optional custom path to the style themes overview.
- *   Defaults to `<project_root>/banner_docs/style-themes/README.md`.
- * @returns A promise resolving to the full system prompt string.
+ * Reads the banner types overview from `banner-types/README.md` and constructs
+ * a prompt that asks the LLM to pick the best banner type or ask for clarification.
+ *
+ * Use with {@link bannerTypeClassificationUserPrompt} as the user message.
+ *
+ * @param overviewPath - Optional custom path. Defaults to `banner_docs/banner-types/README.md`.
  */
-export async function buildIntentClassificationSystemPrompt(
-  overviewPath?: string,
-  styleThemesPath?: string
+export async function buildBannerTypeClassificationPrompt(
+  overviewPath?: string
 ): Promise<string> {
-  const overviewMdPath = overviewPath ?? join(DOCS_DIR, "banner-types", "README.md");
-  const styleThemesMdPath = styleThemesPath ?? join(DOCS_DIR, "style-themes", "README.md");
-
-  const [overviewMd, styleThemesMd] = await Promise.all([
-    loadMarkdownFile(overviewMdPath),
-    loadMarkdownFile(styleThemesMdPath),
-  ]);
+  const path = overviewPath ?? join(BANNER_TYPES_DIR, "README.md");
+  const overviewMd = await loadMarkdownFile(path);
 
   const bannerTypes = parseBannerOverview(overviewMd);
   if (bannerTypes.length === 0) {
     throw new Error(
-      "No banner types found in overview.md. Check the 'Detailed breakdown per type' section."
+      "No banner types found in README.md. Check the 'Detailed breakdown per type' section."
     );
   }
 
   const bannerTypesSection = buildBannerTypesSection(bannerTypes);
   const familyList = buildFamilyList(bannerTypes);
-  const outputFormat = OUTPUT_FORMAT_TEMPLATE.replace("{{FAMILY_LIST}}", familyList);
+  const outputFormat = BANNER_TYPE_OUTPUT_FORMAT.replace("{{FAMILY_LIST}}", familyList);
 
-  return `You are a banner design consultant for an e-commerce platform. Your job is to analyze a shop owner's request and determine:
-
-1. **Which banner type** best fulfills their goal (from the available types listed below)
-2. **Which visual style theme** is most appropriate based on their description, brand tone, and campaign context
+  return `You are a banner type classifier for an e-commerce platform. Your job is to analyze a shop owner's request and determine which banner type best fulfills their goal.
 
 ---
 
@@ -219,41 +200,197 @@ ${bannerTypesSection}
 
 ---
 
-${styleThemesMd}
-
----
-
 ${outputFormat}
 
 ---
 
-${RULES_SECTION}`;
+${BANNER_TYPE_RULES}`;
 }
 
-// ── Static exports ─────────────────────────────────────────────────────────
+/** User prompt for Step 1 — banner type classification. */
+export const bannerTypeClassificationUserPrompt = PromptTemplate.fromTemplate(
+  `Classify the best banner type for this shop owner request:
+
+{user_prompt}`
+);
+
+// ── Step 2: Style Theme Classification ─────────────────────────────────────
+
+const STYLE_THEME_OUTPUT_FORMAT = `## Output Format
+
+You MUST respond with ONLY valid JSON. No markdown fences, comments, or text outside the JSON object.
+
+{
+  "action": "classify" | "clarify",
+  "style": {
+    "theme": "<one of the themes above, or null>",
+    "theme_description": "<1 sentence describing the visual direction>",
+    "confidence": <float 0.0 to 1.0>
+  },
+  "needs_clarification": <boolean>,
+  "clarification_questions": ["<question 1>", "<question 2>"]
+}
+
+### When action = "classify":
+- You confidently determined the best style theme.
+- needs_clarification must be false.
+- clarification_questions must be omitted.
+
+### When action = "clarify":
+- The user's request contains no style hints and you cannot infer one.
+- needs_clarification must be true.
+- Provide 1-3 specific, actionable clarification questions about visual preferences.
+- Set style fields to null.`;
+
+const STYLE_THEME_RULES = `## Rules
+
+1. **One theme only.** Do not mix themes.
+2. **Don't assume style.** If the user didn't describe any visual preference, set theme to null and ask for clarification. Don't default to a theme unless context strongly implies it.
+3. **Use inference heuristics:**
+   - A countdown or discount paired with urgency language → "bold-urgent".
+   - A luxury/premium brand mention → "luxury-elegant".
+   - A holiday or season mention → "seasonal-holiday".
+   - If the banner type itself is "countdown", the user is likely urgency-driven.
+4. **If the user mentions specific colors**, reflect them in the theme_description even when mapping to a general theme.
+5. **Be specific in theme_description.** Instead of "using minimal style", say "Clean white background, dark gray text, subtle blue accent for the CTA link."`;
 
 /**
- * User prompt template with a placeholder for the shop owner's raw request.
- * Usage: replace {user_prompt} with the user's input text.
+ * Build the system prompt for Step 2 — style theme classification.
+ *
+ * Reads the style themes overview from `style-themes/README.md` and constructs
+ * a prompt that asks the LLM to pick the best visual theme or ask for clarification.
+ *
+ * Use with {@link styleThemeClassificationUserPrompt} as the user message.
+ *
+ * @param bannerFamily - The banner_family selected in step 1 (provides context).
+ * @param styleThemesPath - Optional custom path. Defaults to `banner_docs/style-themes/README.md`.
  */
-export const INTENT_CLASSIFICATION_USER_TEMPLATE = `Analyze the following shop owner request and classify the intent for a banner campaign:
+export async function buildStyleThemeClassificationPrompt(
+  bannerFamily: string,
+  styleThemesPath?: string
+): Promise<string> {
+  const path = styleThemesPath ?? join(STYLE_THEMES_DIR, "README.md");
+  const styleThemesMd = await loadMarkdownFile(path);
 
-{user_prompt}`;
+  const displayName = BANNER_FAMILY_DISPLAY[bannerFamily] ?? bannerFamily;
+
+  return `You are a style theme consultant for banner design. Your job is to recommend the best visual style theme for a banner based on the shop owner's description, brand tone, and campaign context.
+
+The banner type has already been decided: **${displayName}** (banner_family: "${bannerFamily}").
+
+---
+
+${styleThemesMd}
+
+---
+
+${STYLE_THEME_OUTPUT_FORMAT}
+
+---
+
+${STYLE_THEME_RULES}`;
+}
+
+/** User prompt for Step 2 — style theme classification. */
+export const styleThemeClassificationUserPrompt = PromptTemplate.fromTemplate(
+  `Select a visual style theme for this banner:
+
+Banner type: {banner_family}
+User request: {user_prompt}`
+);
+
+// ── Step 3: Configuration Generation ────────────────────────────────────────
+
+const CONFIG_GENERATION_OUTPUT_FORMAT = `## Output Format
+
+You MUST respond with ONLY a valid JSON object. No markdown fences, no comments, no explanatory text — only the JSON.
+
+Generate the complete banner configuration following the exact structure shown in the example configuration above. Customize:
+- **Content fields** (banner_text, act_text, name, coupon_code, etc.) based on the user's request.
+- **Visual fields** (bg_color, text colors, fonts, borders, border_radius, btn_style, discount_style, etc.) based on the style theme's color palette, typography, and design guidelines.
+- **Keep structural fields** (banner_type, template, close_button, show_device, etc.) as shown in the example unless the user explicitly requests a change.
+
+The output must be a single JSON object that can be parsed by JSON.parse().`;
+
+const CONFIG_GENERATION_RULES = `## Rules
+
+1. **Follow the example structure exactly.** Every field shown in the example must be present.
+2. **Apply the style theme consistently.** Use the color palette hex codes, font recommendations, border/radius guidance, and CTA styles from the theme.
+3. **Customize content from the user request.** The banner message, CTA text, and coupon codes should reflect what the user asked for.
+4. **Don't invent features.** Only use fields that exist in the example. Don't add extra properties.
+5. **Use valid values.** Refer to the field constraints (enums, ranges) documented in the fields section.
+6. **Keep the banner simple.** Don't enable optional features (like coupons, animations, font scale) unless the user explicitly requests them or the style theme recommends them.
+7. **Match the tone.** The banner_text wording should match the style theme's personality (e.g., playful language for playful-fun, professional for modern-clean).`;
 
 /**
- * Type mapping from banner_family string to the underlying banner_type and template numeric IDs.
- * Used by downstream nodes to select the correct Zod schema for validation.
+ * Build the system prompt for Step 3 — configuration generation.
+ *
+ * Loads the specific banner configuration doc and the selected style theme detail file,
+ * then constructs a prompt asking the LLM to generate a complete banner configuration JSON.
+ *
+ * Use with {@link configurationGenerationUserPrompt} as the user message.
+ *
+ * @param bannerFamily - The banner_family key from step 1.
+ * @param theme - The style theme key from step 2.
+ * @param configPath - Optional custom path to the configuration doc. Defaults to the matching file in `configuration/`.
+ * @param styleThemePath - Optional custom path to the style theme detail file. Defaults to the matching file in `style-themes/`.
  */
-export const BANNER_FAMILY_MAP: Record<
-  string,
-  { banner_type: number; template: number }
-> = {
-  announcement_single: { banner_type: 0, template: 0 },
-  announcement_rotate: { banner_type: 1, template: 0 },
-  announcement_running: { banner_type: 2, template: 0 },
-  countdown: { banner_type: 3, template: 0 },
-  free_shipping: { banner_type: 0, template: 3 },
-  email_signup: { banner_type: 1, template: 0 },
-  discount: { banner_type: 1, template: 0 },
-  multi: { banner_type: 3, template: 5 },
-};
+export async function buildConfigurationGenerationPrompt(
+  bannerFamily: string,
+  theme: string,
+  configPath?: string,
+  styleThemePath?: string
+): Promise<string> {
+  const configFile = BANNER_FAMILY_TO_CONFIG[bannerFamily];
+  if (!configFile) {
+    throw new Error(`Unknown banner_family: "${bannerFamily}". No configuration file mapped.`);
+  }
+
+  const configMdPath = configPath ?? join(CONFIG_DIR, `${configFile}.md`);
+  const configMd = await loadMarkdownFile(configMdPath);
+
+  const themeFile = STYLE_THEME_FILE_MAP[theme];
+  const themeMdPath = styleThemePath ?? join(STYLE_THEMES_DIR, `${themeFile ?? theme}.md`);
+  let themeMd = "";
+  try {
+    themeMd = await loadMarkdownFile(themeMdPath);
+  } catch {
+    themeMd = `(Style theme detail file not found at ${themeMdPath}. Apply the "${theme}" theme using your knowledge of its visual characteristics.)`;
+  }
+
+  const displayName = BANNER_FAMILY_DISPLAY[bannerFamily] ?? bannerFamily;
+
+  return `You are a banner configuration generator. Your job is to produce a complete, valid JSON configuration object for a **${displayName}** by combining the technical schema with visual design guidelines from the selected style theme.
+
+---
+
+## Banner Configuration Schema: ${displayName}
+
+${configMd}
+
+---
+
+## Style Theme: ${theme}
+
+${themeMd}
+
+---
+
+${CONFIG_GENERATION_OUTPUT_FORMAT}
+
+---
+
+${CONFIG_GENERATION_RULES}`;
+}
+
+/** User prompt for Step 3 — configuration generation. */
+export const configurationGenerationUserPrompt = PromptTemplate.fromTemplate(
+  `Generate a complete banner configuration:
+
+Banner type: {banner_family}
+Style theme: {theme}
+Theme direction: {theme_description}
+User request: {user_prompt}`
+);
+
+

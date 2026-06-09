@@ -13,19 +13,6 @@ Banners can be placed in high-visibility areas such as the top or bottom of the 
 
 ## Banner types
 
-| Type                        | Description                                                                                                                                                                                                                                    |
-| :-------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Announcement Single Banner  | Displays a single static message for promotions, sales, or announcements. <br>It can include text, an optional call-to-action (like a link or button), and a copiable coupon code.                                                             |
-| Announcement Rotate Banner  | Cycles through multiple messages or visuals automatically or via user interaction. <br>Ideal for highlighting various promotions, announcements, or featured content in a dynamic, space-saving way.                                           |
-| Announcement Running Banner | Displays content using a continuous horizontal scrolling effect (marquee). <br>Typically used to show announcements or promotions that loop seamlessly across the screen to grab attention.                                                    |
-| Countdown Banner            | Creates a sense of urgency by displaying a real-time ticking clock. <br>Highly effective for limited-time offers, flash sales, and holiday events to encourage quick purchasing decisions.                                                     |
-| Free Shipping Banner        | Highlights free shipping promotions and dynamically displays the remaining amount a customer needs to spend to unlock free shipping. <br>Designed to encourage higher Average Order Value (AOV).                                               |
-| Email Signup Banner         | A lead capture banner designed to grow your customer base. <br>Typically offers a small incentive (like a discount) in exchange for the visitor's email address or phone number.                                                               |
-| Discount Banner             | A promotional tool specifically used to highlight store-wide sales, product discounts, or seasonal promotions. <br>Often includes a clear Call-To-Action (CTA) and a readily available promo code.                                             |
-| Multi Banners Slider        | A carousel that displays multiple different banners sequentially without cluttering the screen. <br>It can rotate automatically or via manual navigation arrows, allowing you to showcase a mix of announcements in a single premium location. |
-
-## Detailed breakdown per type
-
 ### Announcement Single Banner
 **Description:**
 Displays a single static message. It can include text, an optional call-to-action (like a link or button), and a copiable coupon code.

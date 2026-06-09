@@ -5,7 +5,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "test:classify": "npx tsx test/testClassifyBannerType.ts"
   },
   "keywords": [],
   "author": "",
@@ -22,6 +23,7 @@
     "@langchain/classic": "^1.0.34",
     "@langchain/core": "^1.1.48",
     "@langchain/langgraph": "^1.3.5",
+    "dotenv": "^17.4.2",
     "langchain": "^1.4.4",
     "langsmith": "^0.7.5",
     "zod": "^4.4.3"

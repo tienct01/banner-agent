@@ -5,6 +5,7 @@ export const BannerAgentState = new StateSchema({
   userInput: z.string(),
   messages: MessagesValue,
   bannerType: z.string(),
+  styleTheme: z.string(),
 });
 
 export type State = typeof BannerAgentState.State;

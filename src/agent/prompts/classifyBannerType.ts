@@ -24,15 +24,20 @@ Here is the Banner Types Docs:
 
 {bannerTypeDocs}
 
-You have access to these tools:
-
-{tools}
+BannerType enums:
+- announcement-single
+- announcement-rotate
+- announcement-running
+- countdown
+- discount
+- email-signup
+- free-shipping
+- multi-banner
 
 Instructions:
-Use the Banner Types Docs to analyze user prompts and determine the banner type best relates their prompts. 
+- Use the Banner Types Docs to analyze user prompts and determine the banner type best relates their prompts. 
+- If don't know which banner type to select then return don't know
 
-Rules:
-- If you don't know which banner type to choose, you can ask user using tool you have access.
 `);
 
 const UserPromptTemplate = HumanMessagePromptTemplate.fromTemplate(`User prompt: {input}`);
@@ -40,9 +45,6 @@ const UserPromptTemplate = HumanMessagePromptTemplate.fromTemplate(`User prompt:
 export async function buildBannerTypeClassificationPrompt(userInput: string) {
   const classifyPrompt = await ClassifyPromptTemplate.format({
     bannerTypeDocs: bannerTypeOverviewMd,
-    tools: `
-- ask_user(): Ask user to get additional information
-`
   });
 
   const userPrompt = await UserPromptTemplate.format({

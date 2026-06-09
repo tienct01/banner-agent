@@ -1,17 +1,15 @@
 import z from "zod";
 import { openAiModel } from "./models/openai.js";
-import { selectBannerConfigDoc } from "./tools/index.js";
+import { askUserTool, selectBannerConfigDoc } from "./tools/index.js";
 import type { State } from "./state.js";
-import type { GraphNode } from "@langchain/langgraph";
+import type { ConditionalEdgeRouter, GraphNode } from "@langchain/langgraph";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { buildClassifyIntentPrompt } from "./prompts/classifyIntent.js";
 
-export const classifyTools = new ToolNode([selectBannerConfigDoc]);
+export const classifyTools = new ToolNode([askUserTool]);
 
 export const classifyIntent: GraphNode<State> = async (state) => {
-  const classifyPrompt = await buildClassifyIntentPrompt(
-    state.userInput,
-  );
+  const classifyPrompt = await buildClassifyIntentPrompt(state.userInput);
 
   const ClassifyIntentSchema = z.object({
     bannerType: z.enum([
@@ -49,4 +47,16 @@ export const classifyIntent: GraphNode<State> = async (state) => {
     bannerType: response.bannerType,
     styleTheme: response.styleTheme,
   };
+};
+
+export const shouldAskUser: ConditionalEdgeRouter<State> = (state) => {
+  if (
+    !state.bannerType ||
+    state.bannerType === "unknown" ||
+    !state.styleTheme ||
+    state.styleTheme === "unknown"
+  ) {
+    return "classify_tools";
+  }
+  return "select_config";
 };

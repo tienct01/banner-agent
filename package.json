@@ -6,7 +6,10 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "test:classify": "npx tsx test/testClassifyBannerType.ts"
+    "test:classify": "npx tsx test/testClassifyBannerType.ts",
+    "test:agent": "npx tsx test/testAgentFlow.ts",
+    "test:e2e": "npx tsx test/testAgentE2E.ts",
+    "test:interactive": "npx tsx test/testInteractive.ts"
   },
   "keywords": [],
   "author": "",

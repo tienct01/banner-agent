@@ -4,7 +4,7 @@ import {
   SystemMessagePromptTemplate,
 } from "@langchain/core/prompts";
 import path, { dirname } from "path";
-import { loadMarkdownFile } from "../../helpers/index.js";
+import { loadMarkdownFile } from "../helper.js";
 import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -38,7 +38,6 @@ Banner type enums:
 - email-signup
 - free-shipping
 - multi-banner
-- unknown
 
 Style themes docs:
 
@@ -55,18 +54,22 @@ Style theme enums:
 - seasonal-holiday
 - luxury-elegant
 - bold-urgent
-- unknown
+- custom
 
 Instructions:
 - Analyze the user prompt to determine the best matching banner type and style theme.
 - Use the Banner Types Docs and Style Themes Docs to classify both.
 - If the user prompt clearly implies a banner type, classify it accordingly.
-- If the user prompt does not suggest any style keywords (e.g., "minimal", "bold", "luxury"), or if the style is ambiguous, set styleTheme to "unknown".
-- If the user prompt is completely unrelated to banner creation, set both bannerType and styleTheme to "unknown".
-- For urgency language ("sale", "limited", "flash sale"), prefer "bold-urgent" theme.
-- For holiday/seasonal prompts ("Christmas", "Halloween", "Black Friday"), prefer "seasonal-holiday" theme.
-- For luxury/premium brand references, prefer "luxury-elegant" theme.
-- For countdown or discount banners with urgency language, pair with "bold-urgent" theme.
+- If banner type does not have in list, then you can clarify again
+- If the user prompt does not suggest any style keywords (e.g., "minimal", "bold", "luxury"), or if the style is ambiguous, ask the user for clarification using the ask_user tool.
+- If the user prompt is completely unrelated to banner creation, ask the user what banner they want using the ask_user tool.
+
+Tool usage guide:
+- You have access to the "ask_user" tool to ask the user questions.
+- Use ask_user when: the prompt is ambiguous, the banner type cannot be determined, or the style preference is unclear.
+- Do NOT use ask_user when: the user prompt is clear enough to classify both banner type and style theme confidently.
+- When asking, provide the available options so the user can choose easily.
+- Ask just one question each time you ask
 `);
 
 const UserPromptTemplate =

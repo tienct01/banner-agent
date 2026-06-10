@@ -6,6 +6,11 @@ export const BannerAgentState = new StateSchema({
   messages: MessagesValue,
   bannerType: z.string(),
   styleTheme: z.string(),
+  configDoc: z.string(),
+  styleThemeDoc: z.string(),
+  configSchema: z.custom<z.ZodType>(),
+  bannerConfig: z.string(),
+  validationError: z.string(),
 });
 
 export type State = typeof BannerAgentState.State;

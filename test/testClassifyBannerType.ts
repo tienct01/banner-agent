@@ -1,6 +1,6 @@
 import { StateGraph, START, END } from "@langchain/langgraph";
-import { BannerAgentState } from "../src/agent/state.js";
-import { classifyIntent } from "../src/agent/nodes.js";
+import { BannerAgentState } from "../src/utils/state.js";
+import { classifyIntent } from "../src/utils/nodes.js";
 import { configDotenv } from "dotenv";
 configDotenv();
 

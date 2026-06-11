@@ -2,10 +2,13 @@ import z from "zod";
 import { openAiModel } from "./models.js";
 import { askUserTool } from "./tools.js";
 import type { State } from "./state.js";
-import type { GraphNode } from "@langchain/langgraph";
+import { END, type GraphNode } from "@langchain/langgraph";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { buildClassifyIntentPrompt } from "./prompts/classifyIntent.js";
-import { buildGenerateConfigPrompt } from "./prompts/generateConfig.js";
+import {
+  buildGenerateConfigPrompt,
+  buildRetryPrompt,
+} from "./prompts/generateConfig.js";
 import { AIMessage } from "@langchain/core/messages";
 import path from "node:path";
 import { loadMarkdownFile } from "./helper.js";
@@ -52,6 +55,42 @@ const CONFIG_SCHEMA_MAP: Record<string, z.ZodType> = {
   "free-shipping": FreeShippingBannerSchema,
   "multi-banner": MultiBannerSchema,
 };
+
+function getErrorMessage(error: unknown) {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function messageContentToString(content: unknown) {
+  if (typeof content === "string") {
+    return content;
+  }
+
+  if (Array.isArray(content)) {
+    return content
+      .map((part) => {
+        if (typeof part === "string") {
+          return part;
+        }
+
+        if (part && typeof part === "object" && "text" in part) {
+          return String((part as { text?: unknown }).text ?? "");
+        }
+
+        return JSON.stringify(part);
+      })
+      .join("");
+  }
+
+  return String(content ?? "");
+}
+
+function parseJsonConfig(configText: string, schema: z.ZodType) {
+  const trimmed = configText.trim();
+  const fencedMatch = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  const jsonText = fencedMatch?.[1] ?? trimmed;
+
+  return schema.parse(JSON.parse(jsonText));
+}
 
 const CONFIG_DOCS_DIR = path.resolve(
   import.meta.dirname,
@@ -127,67 +166,89 @@ export const extractIntent: GraphNode<State> = async (state) => {
     ...state.messages,
   ]);
 
-  return {
-    bannerType: response.bannerType,
-    styleTheme: response.styleTheme,
-  };
-};
-
-export const selectConfigAndStyleDoc: GraphNode<State> = async (state) => {
-  const configFileName =
-    BANNER_TYPE_TO_DOC[state.bannerType ?? "announcement-single"];
-  const styleFileName = STYLE_THEME_TO_DOC[state.styleTheme ?? "minimal"];
+  const configFileName = BANNER_TYPE_TO_DOC[response.bannerType];
+  const styleFileName = STYLE_THEME_TO_DOC[response.styleTheme ?? "minimal"];
 
   const [configDoc, styleThemeDoc] = await Promise.all([
     configFileName
       ? loadMarkdownFile(path.join(CONFIG_DOCS_DIR, configFileName))
       : Promise.resolve(
-        `Unknown banner type "${state.bannerType}". Available types: ${Object.keys(BANNER_TYPE_TO_DOC).join(", ")}`,
+        `Unknown banner type "${response.bannerType}". Available types: ${Object.keys(BANNER_TYPE_TO_DOC).join(", ")}`,
       ),
     styleFileName
       ? loadMarkdownFile(path.join(STYLE_THEMES_DIR, styleFileName))
       : Promise.resolve(
-        `Unknown style theme "${state.styleTheme}". Available themes: ${Object.keys(STYLE_THEME_TO_DOC).join(", ")}`,
+        `Unknown style theme "${response.styleTheme}". Available themes: ${Object.keys(STYLE_THEME_TO_DOC).join(", ")}`,
       ),
   ]);
 
-  const configSchema = CONFIG_SCHEMA_MAP[state.bannerType ?? "announcement-single"] ?? AnnouncementSingleBannerSchema;
+  const configSchema =
+    CONFIG_SCHEMA_MAP[response.bannerType] ?? AnnouncementSingleBannerSchema;
 
-  return { configDoc, styleThemeDoc, configSchema };
+  return {
+    bannerType: response.bannerType,
+    styleTheme: response.styleTheme,
+    configDoc,
+    styleThemeDoc,
+    configSchema,
+  };
 };
 
 export const generateConfig: GraphNode<State> = async (state) => {
   const schema = state.configSchema;
-  const modelWithSchema = openAiModel.withStructuredOutput(schema);
-
-  const prompt = await buildGenerateConfigPrompt({
+  const promptParams = {
     userInput: state.userInput,
     bannerType: state.bannerType ?? "announcement-single",
     styleTheme: state.styleTheme ?? "minimal",
     configDoc: state.configDoc ?? "",
     styleThemeDoc: state.styleThemeDoc ?? "",
-  });
+  };
 
-  const config = await modelWithSchema.invoke(prompt);
+  try {
+    const prompt = await buildGenerateConfigPrompt(promptParams);
+    const response = await openAiModel.invoke(prompt);
+    const previousConfig = messageContentToString(response.content);
 
-  return { bannerConfig: JSON.stringify(config) };
+    try {
+      const config = parseJsonConfig(previousConfig, schema);
+      return { bannerConfig: JSON.stringify(config), validationError: "" };
+    } catch (parseError) {
+      return {
+        bannerConfig: previousConfig,
+        validationError: getErrorMessage(parseError),
+      };
+    }
+  } catch (error) {
+    return { validationError: getErrorMessage(error) };
+  }
 };
 
-// export const validateConfig: GraphNode<State> = async (state) => {
-//   const schema = state.configSchema;
-//
-//   const parsed = schema.safeParse(JSON.parse(state.bannerConfig));
-//   if (parsed.success) {
-//     return { validationError: "", bannerConfig: JSON.stringify(parsed.data) };
-//   }
-//
-//   const errors = parsed.error.issues
-//     .map((i) => `${i.path.join(".")}: ${i.message}`)
-//     .join("; ");
-//
-//   return { validationError: errors };
-// };
-//
-// export function shouldRetry(state: State) {
-//   return state.validationError ? "generate_config" : END;
-// }
+export function shouldRetryGenerateConfig(state: State) {
+  return state.validationError && state.bannerConfig
+    ? "try_generate_config"
+    : END;
+}
+
+export const tryGenerateConfig: GraphNode<State> = async (state) => {
+  const schema = state.configSchema;
+  const previousConfig = state.bannerConfig ?? "";
+
+  try {
+    const retryPrompt = await buildRetryPrompt({
+      userInput: state.userInput,
+      bannerType: state.bannerType ?? "announcement-single",
+      styleTheme: state.styleTheme ?? "minimal",
+      configDoc: state.configDoc ?? "",
+      styleThemeDoc: state.styleThemeDoc ?? "",
+      previousConfig,
+      error: state.validationError ?? "",
+    });
+    const retryResponse = await openAiModel.invoke(retryPrompt);
+    const retryConfig = messageContentToString(retryResponse.content);
+    const config = parseJsonConfig(retryConfig, schema);
+
+    return { bannerConfig: JSON.stringify(config), validationError: "" };
+  } catch (error) {
+    return { validationError: getErrorMessage(error) };
+  }
+};

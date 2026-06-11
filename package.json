@@ -10,8 +10,8 @@
     "test:agent": "npx tsx test/testAgentFlow.ts",
     "test:e2e": "npx tsx test/testAgentE2E.ts",
     "test:interactive": "npx tsx test/testInteractive.ts",
-    "test:retry": "npx tsx test/testRetryGenerateConfig.ts",
-    "test:agent:workflow": "npx tsx test/testAgentWorkflow.ts"
+    "test:agent:workflow": "npx tsx test/testAgentWorkflow.ts",
+    "visualize": "npx @langchain/langgraph-cli dev --port 9909"
   },
   "keywords": [],
   "author": "",

@@ -2,16 +2,13 @@ import z from "zod";
 import { openAiModel } from "./models.js";
 import { askUserTool } from "./tools.js";
 import type { State } from "./state.js";
-import { END, type GraphNode } from "@langchain/langgraph";
+import { Command, type GraphNode } from "@langchain/langgraph";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { buildClassifyIntentPrompt } from "./prompts/classifyIntent.js";
-import {
-  buildGenerateConfigPrompt,
-  buildRetryPrompt,
-} from "./prompts/generateConfig.js";
+import { AiStructureOutputTemplate, buildGenerateConfigPrompt } from "./prompts/generateConfig.js";
 import { AIMessage } from "@langchain/core/messages";
 import path from "node:path";
-import { loadMarkdownFile } from "./helper.js";
+import { clearMessages, loadMarkdownFile } from "./helper.js";
 import { AnnouncementSingleBannerSchema } from "src/schemas/single_banner.js";
 import { AnnouncementRotateBannerSchema } from "src/schemas/rotate_banner.js";
 import { AnnouncementRunningBannerSchema } from "src/schemas/running_banner.js";
@@ -58,38 +55,6 @@ const CONFIG_SCHEMA_MAP: Record<string, z.ZodType> = {
 
 function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : String(error);
-}
-
-function messageContentToString(content: unknown) {
-  if (typeof content === "string") {
-    return content;
-  }
-
-  if (Array.isArray(content)) {
-    return content
-      .map((part) => {
-        if (typeof part === "string") {
-          return part;
-        }
-
-        if (part && typeof part === "object" && "text" in part) {
-          return String((part as { text?: unknown }).text ?? "");
-        }
-
-        return JSON.stringify(part);
-      })
-      .join("");
-  }
-
-  return String(content ?? "");
-}
-
-function parseJsonConfig(configText: string, schema: z.ZodType) {
-  const trimmed = configText.trim();
-  const fencedMatch = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
-  const jsonText = fencedMatch?.[1] ?? trimmed;
-
-  return schema.parse(JSON.parse(jsonText));
 }
 
 const CONFIG_DOCS_DIR = path.resolve(
@@ -186,6 +151,7 @@ export const extractIntent: GraphNode<State> = async (state) => {
     CONFIG_SCHEMA_MAP[response.bannerType] ?? AnnouncementSingleBannerSchema;
 
   return {
+    ...clearMessages(state),
     bannerType: response.bannerType,
     styleTheme: response.styleTheme,
     configDoc,
@@ -205,50 +171,19 @@ export const generateConfig: GraphNode<State> = async (state) => {
   };
 
   try {
+    const llmStructuredOutput = openAiModel.withStructuredOutput(state.configSchema);
     const prompt = await buildGenerateConfigPrompt(promptParams);
-    const response = await openAiModel.invoke(prompt);
-    const previousConfig = messageContentToString(response.content);
+    const response = await llmStructuredOutput.invoke([
+      ...prompt,
+      ...state.messages,
+    ]);
 
-    try {
-      const config = parseJsonConfig(previousConfig, schema);
-      return { bannerConfig: JSON.stringify(config), validationError: "" };
-    } catch (parseError) {
-      return {
-        bannerConfig: previousConfig,
-        validationError: getErrorMessage(parseError),
-      };
-    }
   } catch (error) {
-    return { validationError: getErrorMessage(error) };
-  }
-};
-
-export function shouldRetryGenerateConfig(state: State) {
-  return state.validationError && state.bannerConfig
-    ? "try_generate_config"
-    : END;
-}
-
-export const tryGenerateConfig: GraphNode<State> = async (state) => {
-  const schema = state.configSchema;
-  const previousConfig = state.bannerConfig ?? "";
-
-  try {
-    const retryPrompt = await buildRetryPrompt({
-      userInput: state.userInput,
-      bannerType: state.bannerType ?? "announcement-single",
-      styleTheme: state.styleTheme ?? "minimal",
-      configDoc: state.configDoc ?? "",
-      styleThemeDoc: state.styleThemeDoc ?? "",
-      previousConfig,
-      error: state.validationError ?? "",
-    });
-    const retryResponse = await openAiModel.invoke(retryPrompt);
-    const retryConfig = messageContentToString(retryResponse.content);
-    const config = parseJsonConfig(retryConfig, schema);
-
-    return { bannerConfig: JSON.stringify(config), validationError: "" };
-  } catch (error) {
-    return { validationError: getErrorMessage(error) };
+    return {
+      messages: [AiStructureOutputTemplate.format({
+        output: 
+      })]
+      validationError: getErrorMessage(error) 
+    };
   }
 };

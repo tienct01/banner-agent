@@ -1,0 +1,9 @@
+{
+  "dependencies": [
+    "."
+  ],
+  "graphs": {
+    "banner_agent": "./src/agent.ts:graph"
+  },
+  "env": "./.env"
+}

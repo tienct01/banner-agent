@@ -1,5 +1,6 @@
 import { configDotenv } from "dotenv";
 import { graph } from "../src/agent.js";
+import type { State } from "../src/utils/state.js";
 
 configDotenv();
 
@@ -7,19 +8,34 @@ const input =
   process.argv.slice(2).join(" ") ||
   "Create a minimal announcement banner saying Welcome to our store";
 
-const initialState = {
+const initialState: State = {
   userInput: input,
   messages: [],
   bannerType: "",
   styleTheme: "",
   configDoc: "",
   styleThemeDoc: "",
-  bannerConfig: "",
-  validationError: "",
+  configSchema: {} as State["configSchema"],
+  generatedResult: {
+    config: "",
+    isFailed: false,
+  },
 };
 
 function truncate(value: string, maxLength = 500) {
-  return value.length > maxLength ? value.slice(0, maxLength) + "..." : value;
+  return value.length > maxLength ? `${value.slice(0, maxLength)}...` : value;
+}
+
+function formatConfig(config: unknown) {
+  if (typeof config !== "string") {
+    return JSON.stringify(config, null, 2);
+  }
+
+  try {
+    return JSON.stringify(JSON.parse(config), null, 2);
+  } catch {
+    return truncate(config, 1000);
+  }
 }
 
 function formatValue(key: string, value: unknown) {
@@ -31,12 +47,13 @@ function formatValue(key: string, value: unknown) {
     return truncate(String(value), 300);
   }
 
-  if (key === "bannerConfig" && typeof value === "string") {
-    try {
-      return JSON.stringify(JSON.parse(value), null, 2);
-    } catch {
-      return truncate(value, 1000);
-    }
+  if (key === "generatedResult" && value && typeof value === "object") {
+    const result = value as State["generatedResult"];
+    return [
+      `isFailed: ${String(result.isFailed ?? false)}`,
+      "config:",
+      formatConfig(result.config ?? ""),
+    ].join("\n");
   }
 
   if (key === "messages") {
@@ -63,7 +80,7 @@ async function run() {
   console.log(`Input: ${input}`);
   console.log("Workflow updates:");
 
-  let finalState: Record<string, unknown> = { ...initialState };
+  let finalState: State = { ...initialState };
   let step = 0;
 
   const stream = await graph.stream(initialState, {
@@ -76,8 +93,8 @@ async function run() {
     console.log(`\n--- Step ${step} ---`);
 
     for (const [nodeName, update] of Object.entries(chunk)) {
-      const nodeUpdate = update as Record<string, unknown>;
-      printUpdate(nodeName, nodeUpdate);
+      const nodeUpdate = update as Partial<State>;
+      printUpdate(nodeName, nodeUpdate as Record<string, unknown>);
       finalState = { ...finalState, ...nodeUpdate };
     }
   }
@@ -85,9 +102,9 @@ async function run() {
   console.log("\nFinal output:");
   console.log(`bannerType : ${String(finalState.bannerType ?? "")}`);
   console.log(`styleTheme : ${String(finalState.styleTheme ?? "")}`);
-  console.log(`error      : ${String(finalState.validationError ?? "")}`);
+  console.log(`isFailed   : ${String(finalState.generatedResult?.isFailed ?? false)}`);
   console.log("config     :");
-  console.log(formatValue("bannerConfig", finalState.bannerConfig));
+  console.log(formatConfig(finalState.generatedResult?.config ?? ""));
 }
 
 run().catch((error) => {

@@ -5,13 +5,13 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "test:classify": "npx tsx test/testClassifyBannerType.ts",
-    "test:agent": "npx tsx test/testAgentFlow.ts",
-    "test:e2e": "npx tsx test/testAgentE2E.ts",
-    "test:interactive": "npx tsx test/testInteractive.ts",
+    "test": "npm run test:agent:structure",
+    "test:agent": "npm run test:agent:structure",
     "test:agent:workflow": "npx tsx test/testAgentWorkflow.ts",
-    "visualize": "npx @langchain/langgraph-cli dev --port 9909"
+    "visualize": "npx @langchain/langgraph-cli dev --port 9909",
+    "test:agent:structure": "npx tsx test/testAgentStructure.ts",
+    "test:schema:running": "npx tsx test/testRunningBannerSchema.ts",
+    "test:schema": "npx tsx test/testSchemasOpenAICompatibility.ts"
   },
   "keywords": [],
   "author": "",

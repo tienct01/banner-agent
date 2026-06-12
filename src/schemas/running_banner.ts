@@ -6,16 +6,16 @@ export const ActionConfigImageSchema = z.object({
 
 export const ActionConfigCtaSchema = z.object({
   cta_type: z.number(),
-  direct_link: z.string().optional(),
-  text_copy: z.string().optional(),
-  success_message: z.string().optional(),
+  direct_link: z.string().nullable(),
+  text_copy: z.string().nullable(),
+  success_message: z.string().nullable(),
 });
 
 export const ActionStyleCtaSchema = z.object({
   border_type: z.number(),
   background: z.string(),
   text_color: z.string(),
-  font_size: z.number().optional(),
+  font_size: z.number().nullable(),
   padding: z.string(),
   animation: z.number(),
 });
@@ -43,21 +43,21 @@ export const ImageAnnouncementSchema = z.object({
   type: z.literal(1),
   content: z.string(),
   size: z.number(),
-  action_config: ActionConfigImageSchema.optional(),
+  action_config: ActionConfigImageSchema.nullable(),
 });
 
 export const CtaAnnouncementSchema = z.object({
   type: z.literal(2),
   content: z.string(),
   action_config: ActionConfigCtaSchema,
-  action_style: ActionStyleCtaSchema.optional(),
+  action_style: ActionStyleCtaSchema.nullable(),
 });
 
 export const CouponAnnouncementSchema = z.object({
   type: z.literal(3),
   content: z.string(),
   coupon_data: CouponDataSchema,
-  action_style: ActionStyleCouponSchema.optional(),
+  action_style: ActionStyleCouponSchema.nullable(),
 });
 
 export const MediaAnnouncementSchema = z.union([
@@ -74,13 +74,13 @@ export const RunningBannerTemplateSchema = z.object({
   animation_duration: z.string(),
   animation_hover_pause: z.boolean(),
   bg_type: z.union([z.literal(0), z.literal(1), z.literal(2)]),
-  bg_color: z.string().nullable().optional(),
-  bg_gradient: z.string().nullable().optional(),
+  bg_color: z.string().nullable(),
+  bg_gradient: z.string().nullable(),
   bg_opacity: z.number().min(0).max(100).nullable().default(100),
-  bg_img_url_s3: z.string().nullable().optional(),
-  font_url: z.string().nullable().optional(),
-  bg_preset: z.number().nullable().optional(),
-  font_family: z.string().nullable().optional(),
+  bg_img_url_s3: z.string().nullable(),
+  font_url: z.string().nullable(),
+  bg_preset: z.number().nullable(),
+  font_family: z.string().nullable(),
   content_gap: z.number().min(0).max(200).nullable().default(16),
   bg_padding: z.number().max(100).nullable().default(12),
   bg_padding_bottom: z.number().max(100).nullable().default(12),
@@ -88,7 +88,7 @@ export const RunningBannerTemplateSchema = z.object({
   bg_padding_right: z.number().max(100).nullable().default(12),
   bg_size: z.enum(["cover", "contain", "auto"]).nullable().default("cover"),
   mobile_padding_enabled: z.boolean().nullable().default(false),
-  mb_bg_padding: z.string().regex(/^\d+px \d+px \d+px \d+px$/).nullable().optional(),
+  mb_bg_padding: z.string().regex(/^\d+px \d+px \d+px \d+px$/).nullable(),
   border_width: z.string().nullable().default("0px"),
   border_color: z.string().nullable().default("#000000"),
   border_style: z.number().int().min(0).max(7).nullable().default(0),

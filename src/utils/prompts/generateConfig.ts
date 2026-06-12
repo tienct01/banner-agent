@@ -26,11 +26,9 @@ Your task is to generate a valid JSON configuration object for a banner based on
 - Generate a complete, valid JSON configuration object that matches the user's request.
 - Follow the Configuration Reference Document strictly for field names, types, constraints, and defaults.
 - Apply the style guidelines from the Style Theme Reference Document to determine colors, typography, borders, padding, and other visual properties.
-- The banner_text and act_text fields must be wrapped in a <p> or <span> tag with inline font-size and color styles.
-- Use the exact banner_type value required by the banner type.
-- Fill in all required fields. For optional fields where the user did not specify a preference, apply the style theme's guidance or use sensible defaults from the reference doc.
 - Do NOT include any fields not defined in the Configuration Reference Document.
 - Output ONLY the JSON object, no markdown fences, no explanation.
+- If the configuration object is failed parse schema, then you need to retry generate.
 `);
 
 const GenerateConfigUserTemplate =

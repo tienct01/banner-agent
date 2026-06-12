@@ -6,6 +6,7 @@ import {
   shouldAskUser,
   extractIntent,
   generateConfig,
+  shouldRetryGenerate,
 } from "./utils/nodes.js";
 
 export const graph = new StateGraph(BannerAgentState)
@@ -20,5 +21,5 @@ export const graph = new StateGraph(BannerAgentState)
   ])
   .addEdge("ask_user", "classify_intent")
   .addEdge("extract_intent", "generate_config")
-  .addEdge("generate_config", END)
+  .addConditionalEdges("generate_config", shouldRetryGenerate, ["generate_config", END])
   .compile();

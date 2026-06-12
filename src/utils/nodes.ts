@@ -2,10 +2,13 @@ import z from "zod";
 import { openAiModel } from "./models.js";
 import { askUserTool } from "./tools.js";
 import type { State } from "./state.js";
-import { Command, type GraphNode } from "@langchain/langgraph";
+import { Command, END, type ConditionalEdgeRouter, type GraphNode } from "@langchain/langgraph";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { buildClassifyIntentPrompt } from "./prompts/classifyIntent.js";
-import { AiStructureOutputTemplate, buildGenerateConfigPrompt } from "./prompts/generateConfig.js";
+import {
+  AiStructureOutputTemplate,
+  buildGenerateConfigPrompt,
+} from "./prompts/generateConfig.js";
 import { AIMessage } from "@langchain/core/messages";
 import path from "node:path";
 import { clearMessages, loadMarkdownFile } from "./helper.js";
@@ -17,6 +20,7 @@ import { DiscountBannerSchema } from "src/schemas/discount_banner.js";
 import { EmailSignupBannerSchema } from "src/schemas/email_signup_banner.js";
 import { FreeShippingBannerSchema } from "src/schemas/free_shipping_banner.js";
 import { MultiBannerSchema } from "src/schemas/multi_banner.js";
+import { OutputParserException } from "@langchain/core/output_parsers";
 
 const BANNER_TYPE_TO_DOC: Record<string, string> = {
   "announcement-single": "announcement-single.md",
@@ -161,7 +165,6 @@ export const extractIntent: GraphNode<State> = async (state) => {
 };
 
 export const generateConfig: GraphNode<State> = async (state) => {
-  const schema = state.configSchema;
   const promptParams = {
     userInput: state.userInput,
     bannerType: state.bannerType ?? "announcement-single",
@@ -171,19 +174,44 @@ export const generateConfig: GraphNode<State> = async (state) => {
   };
 
   try {
-    const llmStructuredOutput = openAiModel.withStructuredOutput(state.configSchema);
+    const llmStructuredOutput = openAiModel.withStructuredOutput(
+      state.configSchema,
+    );
     const prompt = await buildGenerateConfigPrompt(promptParams);
     const response = await llmStructuredOutput.invoke([
       ...prompt,
       ...state.messages,
     ]);
 
-  } catch (error) {
     return {
-      messages: [AiStructureOutputTemplate.format({
-        output: 
-      })]
-      validationError: getErrorMessage(error) 
+      generatedResult: {
+        config: JSON.stringify(response),
+        isFailed: false,
+      },
     };
+  } catch (error) {
+    if (error instanceof OutputParserException) {
+      const aiMessage = await AiStructureOutputTemplate.format({
+        output: error.llmOutput,
+        error: error.message,
+      });
+      return {
+        messages: [aiMessage],
+        generatedResult: {
+          config: JSON.stringify(error.llmOutput),
+          isFailed: true,
+        }
+      };
+    }
+    throw error;
   }
 };
+
+export const shouldRetryGenerate: ConditionalEdgeRouter<State> = async (state) => {
+  if(state.generatedResult.isFailed) {
+    return "generate_config";
+  }
+  else {
+    return END;
+  }
+}

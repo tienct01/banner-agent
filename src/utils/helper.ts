@@ -31,7 +31,7 @@ export function extractGeneratedJsonObject<T>(
   text: string
 ): T | null {
   const match = text.match(
-    /\{generated_json\}\s*([\s\S]*?)\s*\{generated_json\}/
+    /<generated_json>\s*([\s\S]*?)\s*<\/generated_json>/,
   );
 
   const jsonString = match?.[1];

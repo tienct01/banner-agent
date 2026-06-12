@@ -9,7 +9,16 @@ export const BannerAgentState = new StateSchema({
   configDoc: z.string(),
   styleThemeDoc: z.string(),
   configSchema: z.custom<z.ZodType>(),
-  validationErr: z.string().optional()
+  validationErr: z.string().optional(),
+  generatedResult: z
+    .object({
+      config: z.string(),
+      isFailed: z.boolean(),
+    })
+    .default({
+      config: "",
+      isFailed: false,
+    }),
 });
 
 export type State = typeof BannerAgentState.State;

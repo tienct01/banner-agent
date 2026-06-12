@@ -16,6 +16,7 @@ const initialState: State = {
   configDoc: "",
   styleThemeDoc: "",
   configSchema: {} as State["configSchema"],
+  validationErr: undefined,
   generatedResult: {
     config: "",
     isFailed: false,

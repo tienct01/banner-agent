@@ -1,5 +1,4 @@
 import {
-  AIMessagePromptTemplate,
   ChatPromptTemplate,
   HumanMessagePromptTemplate,
   SystemMessagePromptTemplate,
@@ -28,14 +27,17 @@ Your task is to generate a valid JSON configuration object for a banner based on
 
 ## Instructions
 - Output JSON configuration object must be render in marker: 
-{generated_json}
-{generated_json}
+<generated_json>
+</generated_json>
 - Generate a complete, valid JSON configuration object that matches the user's request.
 - Follow the Configuration Reference Document strictly for field names, types, constraints, and defaults.
 - Apply the style guidelines from the Style Theme Reference Document to determine colors, typography, borders, padding, and other visual properties.
 - Do NOT include any fields not defined in the Configuration Reference Document.
 - Output ONLY the JSON object, no markdown fences, no explanation.
 - If the configuration object is failed parse schema, then you need to retry generate.
+
+## Tools usage guides
+- Use tool to select images relate and appropriate with banner.
 `);
 
 const GenerateConfigUserTemplate =

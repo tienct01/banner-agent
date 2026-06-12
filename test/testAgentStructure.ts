@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
+import { AIMessage } from "@langchain/core/messages";
 import { END, START, StateGraph, type GraphNode } from "@langchain/langgraph";
+import z from "zod";
 import { BannerAgentState, type State } from "../src/utils/state.js";
-import { shouldRetryGenerate } from "../src/utils/nodes.js";
+import {
+  extractGeneratedConfig,
+  generateConfigRouter,
+} from "../src/utils/nodes.js";
 
 function baseState(overrides: Partial<State> = {}): State {
   return {
@@ -11,7 +16,8 @@ function baseState(overrides: Partial<State> = {}): State {
     styleTheme: "minimal",
     configDoc: "",
     styleThemeDoc: "",
-    configSchema: {} as State["configSchema"],
+    configSchema: z.object({ ok: z.boolean() }),
+    validationErr: undefined,
     generatedResult: {
       config: "",
       isFailed: false,
@@ -22,18 +28,46 @@ function baseState(overrides: Partial<State> = {}): State {
 
 async function testRetryRouter() {
   assert.equal(
-    await shouldRetryGenerate(
-      baseState({ generatedResult: { isFailed: true } }),
+    await generateConfigRouter(
+      baseState({ validationErr: "Invalid config" }),
       {} as never,
     ),
     "generate_config",
   );
+
   assert.equal(
-    await shouldRetryGenerate(
-      baseState({ generatedResult: { isFailed: false } }),
+    await generateConfigRouter(
+      baseState({
+        messages: [
+          new AIMessage({
+            content: "",
+            tool_calls: [
+              {
+                id: "call_1",
+                name: "search_unsplash_images",
+                args: { query: "sale banner" },
+              },
+            ],
+          }),
+        ],
+        validationErr: "stale validation error",
+      }),
       {} as never,
     ),
-    END,
+    "generate_config_tools",
+  );
+
+  assert.equal(
+    await generateConfigRouter(
+      baseState({
+        messages: [
+          new AIMessage("<generated_json>{\"ok\":true}<\/generated_json>"),
+        ],
+        validationErr: "",
+      }),
+      {} as never,
+    ),
+    "extract_configurations",
   );
 }
 
@@ -42,24 +76,36 @@ async function testGenerateRetryFlow() {
   const generateConfigStub: GraphNode<State> = async () => {
     attempt += 1;
 
+    if (attempt === 1) {
+      return { validationErr: "Invalid config" };
+    }
+
     return {
-      generatedResult: {
-        config: attempt === 1 ? "" : JSON.stringify({ ok: true }),
-        isFailed: attempt === 1,
-      },
+      messages: [
+        new AIMessage("<generated_json>{\"ok\":true}</generated_json>"),
+      ],
+      validationErr: "",
     };
   };
 
+  const generateConfigToolsStub: GraphNode<State> = async () => ({});
+
   const graph = new StateGraph(BannerAgentState)
     .addNode("generate_config", generateConfigStub)
+    .addNode("generate_config_tools", generateConfigToolsStub)
+    .addNode("extract_configurations", extractGeneratedConfig)
     .addEdge(START, "generate_config")
-    .addConditionalEdges("generate_config", shouldRetryGenerate, [
+    .addConditionalEdges("generate_config", generateConfigRouter, [
       "generate_config",
-      END,
+      "generate_config_tools",
+      "extract_configurations",
     ])
+    .addEdge("generate_config_tools", "generate_config")
+    .addEdge("extract_configurations", END)
     .compile();
 
   const steps: string[] = [];
+  let extractedConfig = "";
   const stream = await graph.stream(baseState(), {
     recursionLimit: 5,
     streamMode: "updates",
@@ -67,10 +113,22 @@ async function testGenerateRetryFlow() {
 
   for await (const chunk of stream) {
     steps.push(...Object.keys(chunk));
+
+    if ("extract_configurations" in chunk) {
+      const generatedResult = chunk.extract_configurations.generatedResult;
+      if (generatedResult) {
+        extractedConfig = generatedResult.config;
+      }
+    }
   }
 
-  assert.deepEqual(steps, ["generate_config", "generate_config"]);
+  assert.deepEqual(steps, [
+    "generate_config",
+    "generate_config",
+    "extract_configurations",
+  ]);
   assert.equal(attempt, 2);
+  assert.equal(extractedConfig, JSON.stringify({ ok: true }));
 }
 
 async function run() {
@@ -78,8 +136,12 @@ async function run() {
   await testGenerateRetryFlow();
 
   console.log("PASS agent structure");
-  console.log("router: failed -> generate_config, success -> END");
-  console.log("retry flow: generate_config -> generate_config -> END");
+  console.log(
+    "router: validation error -> generate_config, tool call -> generate_config_tools, success -> extract_configurations",
+  );
+  console.log(
+    "retry flow: generate_config -> generate_config -> extract_configurations -> END",
+  );
 }
 
 run().catch((error) => {

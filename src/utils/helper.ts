@@ -26,3 +26,23 @@ export const clearMessages = async (state: State) => {
     ),
   };
 };
+
+export function extractGeneratedJsonObject<T>(
+  text: string
+): T | null {
+  const match = text.match(
+    /\{generated_json\}\s*([\s\S]*?)\s*\{generated_json\}/
+  );
+
+  const jsonString = match?.[1];
+
+  if (jsonString == null) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(jsonString) as T;
+  } catch {
+    return null;
+  }
+}

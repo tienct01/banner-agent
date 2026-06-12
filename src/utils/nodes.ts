@@ -1,17 +1,22 @@
-import z from "zod";
+import z, { ZodError } from "zod";
 import { openAiModel } from "./models.js";
-import { askUserTool } from "./tools.js";
+import { askUserTool, searchUnsplashImagesTool } from "./tools.js";
 import type { State } from "./state.js";
-import { Command, END, type ConditionalEdgeRouter, type GraphNode } from "@langchain/langgraph";
+import {
+  END,
+  type ConditionalEdgeRouter,
+  type GraphNode,
+} from "@langchain/langgraph";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { buildClassifyIntentPrompt } from "./prompts/classifyIntent.js";
-import {
-  AiStructureOutputTemplate,
-  buildGenerateConfigPrompt,
-} from "./prompts/generateConfig.js";
+import { buildGenerateConfigPrompt } from "./prompts/generateConfig.js";
 import { AIMessage } from "@langchain/core/messages";
 import path from "node:path";
-import { clearMessages, loadMarkdownFile } from "./helper.js";
+import {
+  clearMessages,
+  extractGeneratedJsonObject,
+  loadMarkdownFile,
+} from "./helper.js";
 import { AnnouncementSingleBannerSchema } from "src/schemas/single_banner.js";
 import { AnnouncementRotateBannerSchema } from "src/schemas/rotate_banner.js";
 import { AnnouncementRunningBannerSchema } from "src/schemas/running_banner.js";
@@ -20,7 +25,6 @@ import { DiscountBannerSchema } from "src/schemas/discount_banner.js";
 import { EmailSignupBannerSchema } from "src/schemas/email_signup_banner.js";
 import { FreeShippingBannerSchema } from "src/schemas/free_shipping_banner.js";
 import { MultiBannerSchema } from "src/schemas/multi_banner.js";
-import { OutputParserException } from "@langchain/core/output_parsers";
 
 const BANNER_TYPE_TO_DOC: Record<string, string> = {
   "announcement-single": "announcement-single.md",
@@ -56,10 +60,6 @@ const CONFIG_SCHEMA_MAP: Record<string, z.ZodType> = {
   "free-shipping": FreeShippingBannerSchema,
   "multi-banner": MultiBannerSchema,
 };
-
-function getErrorMessage(error: unknown) {
-  return error instanceof Error ? error.message : String(error);
-}
 
 const CONFIG_DOCS_DIR = path.resolve(
   import.meta.dirname,
@@ -171,47 +171,50 @@ export const generateConfig: GraphNode<State> = async (state) => {
     styleTheme: state.styleTheme ?? "minimal",
     configDoc: state.configDoc ?? "",
     styleThemeDoc: state.styleThemeDoc ?? "",
+    schema: state.configSchema,
   };
 
+  const generateModelWithTool = openAiModel.bindTools([
+    searchUnsplashImagesTool,
+  ]);
+  const prompt = await buildGenerateConfigPrompt(promptParams);
+  const response = await generateModelWithTool.invoke([
+    ...prompt,
+    ...state.messages,
+  ]);
+
   try {
-    const llmStructuredOutput = openAiModel.withStructuredOutput(
-      state.configSchema,
+    const generated = await extractGeneratedJsonObject(
+      response.content.toString(),
     );
-    const prompt = await buildGenerateConfigPrompt(promptParams);
-    const response = await llmStructuredOutput.invoke([
-      ...prompt,
-      ...state.messages,
-    ]);
+
+    await state.configSchema.parseAsync(generated);
 
     return {
-      generatedResult: {
-        config: JSON.stringify(response),
-        isFailed: false,
-      },
+      messages: [response],
+      isGenerateSuccess: true,
     };
-  } catch (error) {
-    if (error instanceof OutputParserException) {
-      const aiMessage = await AiStructureOutputTemplate.format({
-        output: error.llmOutput,
-        error: error.message,
-      });
+  } catch (error) { 
+    if (error instanceof ZodError) {
       return {
-        messages: [aiMessage],
-        generatedResult: {
-          config: JSON.stringify(error.llmOutput),
-          isFailed: true,
-        }
+        messages: [response],
+        validationErr: error.message
       };
     }
-    throw error;
   }
 };
 
-export const shouldRetryGenerate: ConditionalEdgeRouter<State> = async (state) => {
-  if(state.generatedResult.isFailed) {
+export const shouldRetryGenerate: ConditionalEdgeRouter<State> = async (
+  state,
+) => {
+  const lastMessage = state.messages.at(-1);
+  if(state.validationErr) {
     return "generate_config";
   }
-  else {
+  else if(state.me)
+  if (!state.isGenerateSuccess) {
+    return "extract_generate_config";
+  } else {
     return END;
   }
-}
+};

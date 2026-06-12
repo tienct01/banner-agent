@@ -4,6 +4,7 @@ import {
   HumanMessagePromptTemplate,
   SystemMessagePromptTemplate,
 } from "@langchain/core/prompts";
+import type z from "zod";
 
 const GenerateConfigSystemTemplate = SystemMessagePromptTemplate.fromTemplate(`
 You are a Banner Configuration Generator for a Banner Builder App.
@@ -22,7 +23,13 @@ Your task is to generate a valid JSON configuration object for a banner based on
 ## Style Theme Reference Document
 {styleThemeDoc}
 
+## Output schema 
+{schema}
+
 ## Instructions
+- Output JSON configuration object must be render in marker: 
+{generated_json}
+{generated_json}
 - Generate a complete, valid JSON configuration object that matches the user's request.
 - Follow the Configuration Reference Document strictly for field names, types, constraints, and defaults.
 - Apply the style guidelines from the Style Theme Reference Document to determine colors, typography, borders, padding, and other visual properties.
@@ -40,12 +47,14 @@ export const buildGenerateConfigPrompt = async (params: {
   styleTheme: string;
   configDoc: string;
   styleThemeDoc: string;
+  schema: z.ZodType;
 }) => {
   const systemPrompt = await GenerateConfigSystemTemplate.format({
     bannerType: params.bannerType,
     styleTheme: params.styleTheme,
     configDoc: params.configDoc,
     styleThemeDoc: params.styleThemeDoc,
+    schema: params.schema.toJSONSchema()
   });
 
   const userPrompt = await GenerateConfigUserTemplate.format({
@@ -58,10 +67,3 @@ export const buildGenerateConfigPrompt = async (params: {
   return await chatTemplate.formatMessages({});
 };
 
-export const AiStructureOutputTemplate: ReturnType<
-  typeof AIMessagePromptTemplate.fromTemplate
-> = AIMessagePromptTemplate.fromTemplate(`
-Generated: {outputObject}
-
-Error: {error}
-`);

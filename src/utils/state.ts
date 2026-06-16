@@ -12,7 +12,7 @@ export const BannerAgentState = new StateSchema({
   validationErr: z.string().optional(),
   generatedResult: z
     .object({
-      config: z.string(),
+      config: z.string().optional(),
       isFailed: z.boolean(),
     })
     .default({

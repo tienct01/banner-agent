@@ -2,14 +2,11 @@ import z, { ZodError } from "zod";
 import { openAiModel } from "./models.js";
 import { askUserTool, searchUnsplashImagesTool } from "./tools.js";
 import type { State } from "./state.js";
-import type {
-  ConditionalEdgeRouter,
-  GraphNode,
-} from "@langchain/langgraph";
+import { END, type ConditionalEdgeRouter, type GraphNode } from "@langchain/langgraph";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { buildClassifyIntentPrompt } from "./prompts/classifyIntent.js";
 import { buildGenerateConfigPrompt } from "./prompts/generateConfig.js";
-import { AIMessage } from "@langchain/core/messages";
+import { AIMessage, HumanMessage } from "@langchain/core/messages";
 import path from "node:path";
 import {
   clearMessages,
@@ -163,45 +160,6 @@ export const extractIntent: GraphNode<State> = async (state) => {
   };
 };
 
-function messageContentToString(content: AIMessage["content"]) {
-  if (typeof content === "string") {
-    return content;
-  }
-
-  if (!Array.isArray(content)) {
-    return String(content);
-  }
-
-  return content
-    .map((part) => {
-      if (typeof part === "string") {
-        return part;
-      }
-
-      if (
-        typeof part === "object" &&
-        part != null &&
-        "text" in part &&
-        typeof part.text === "string"
-      ) {
-        return part.text;
-      }
-
-      return JSON.stringify(part) ?? "";
-    })
-    .join("");
-}
-
-function failedGeneratedConfig(validationErr: string) {
-  return {
-    validationErr,
-    generatedResult: {
-      config: "",
-      isFailed: true,
-    },
-  };
-}
-
 export const generateConfig: GraphNode<State> = async (state) => {
   const promptParams = {
     userInput: state.userInput,
@@ -221,39 +179,14 @@ export const generateConfig: GraphNode<State> = async (state) => {
     ...state.messages,
   ]);
 
-  if (response.tool_calls?.length) {
-    return {
-      messages: [response],
-      validationErr: "",
-    };
-  }
-
-  try {
-    const generated = extractGeneratedJsonObject(
-      messageContentToString(response.content),
-    );
-
-    await state.configSchema.parseAsync(generated);
-
-    return {
-      messages: [response],
-      validationErr: "",
-    };
-  } catch (error) {
-    if (error instanceof ZodError) {
-      return {
-        messages: [response],
-        validationErr: error.message,
-      };
-    }
-
-    throw error;
-  }
+  return {
+    messages: [response],
+  };
 };
 
 export const generateConfigTools = new ToolNode([searchUnsplashImagesTool]);
 
-export const generateConfigRouter: ConditionalEdgeRouter<State> = async (
+export const shouldUseGenerateTool: ConditionalEdgeRouter<State> = async (
   state,
 ) => {
   const lastMessage = state.messages.at(-1);
@@ -262,54 +195,56 @@ export const generateConfigRouter: ConditionalEdgeRouter<State> = async (
     return "generate_config_tools";
   }
 
-  if (state.validationErr) {
-    return "generate_config";
-  }
-
   return "extract_configurations";
 };
 
 export const extractGeneratedConfig: GraphNode<State> = async (state) => {
-  const lastMessage = state.messages.at(-1);
-
-  if (!(lastMessage instanceof AIMessage)) {
-    return failedGeneratedConfig(
-      "No AI response found to extract generated configuration.",
-    );
-  }
-
   try {
-    const extractModel = openAiModel.withStructuredOutput(state.configSchema);
-    const parsedConfig = await extractModel.invoke([
-      [
-        "system",
-        "Extract the generated banner configuration from the AI response. Use only the JSON object inside the <generated_json> tag, and return it as structured output that matches the selected schema.",
-      ],
-      ["human", messageContentToString(lastMessage.content)],
-    ]);
+    const lastMessage = state.messages.at(-1);
 
-    const config = JSON.stringify(parsedConfig);
-
-    if (!config) {
-      return failedGeneratedConfig(
-        "Generated configuration could not be serialized.",
-      );
+    if(!(lastMessage instanceof AIMessage)) {
+      throw "Something broken"
     }
+
+    let contentStr = "";
+    if (typeof lastMessage.content === "string") {
+      contentStr = lastMessage.content;
+    } else if (Array.isArray(lastMessage.content)) {
+      for (const block of lastMessage.content) {
+        if (block.type === "text" && "text" in block) {
+          contentStr += block.text + "\n";
+        }
+      }
+    }
+
+    const extractedObj = extractGeneratedJsonObject(contentStr);
+
+    await state.configSchema.parseAsync(extractedObj);
 
     return {
       validationErr: "",
       generatedResult: {
-        config,
+        config: JSON.stringify(extractedObj),
         isFailed: false,
       },
     };
   } catch (error) {
     if (error instanceof ZodError) {
-      return failedGeneratedConfig(error.message);
+      return {
+        messages: [new HumanMessage(`${z.prettifyError(error)}`)],
+        generatedResult: {
+          isFailed: true,
+        }
+      };
     }
 
-    return failedGeneratedConfig(
-      error instanceof Error ? error.message : String(error),
-    );
+    throw error;
   }
 };
+
+export const shouldRegenerate: ConditionalEdgeRouter<State> = async (state) => {
+  if(state.generatedResult.isFailed) {
+    return "generate_config";
+  }
+  return END;
+}

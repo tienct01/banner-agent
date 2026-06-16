@@ -6,65 +6,65 @@ export const BannerTextSchema = z.object({
 });
 
 export const ButtonStylesSchema = z.object({
-  padding: z.string().nullable(),
-  animation: z.number().nullable(),
+  padding: z.string().default(""),
+  animation: z.number(),
 });
 
 export const BtnSettingsSchema = z.object({
-  btn_style: z.union([z.string(), z.number()]).nullable(),
-  btn_color: z.string().nullable(),
-  btn_txt_color: z.string().nullable(),
-  padding: z.string().nullable(),
-  animation: z.number().nullable(),
+  btn_style: z.union([z.string(), z.number()]),
+  btn_color: z.string().default(""),
+  btn_txt_color: z.string().default(""),
+  padding: z.string().default(""),
+  animation: z.number(),
 });
 
 export const FormStructureFieldSchema = z.object({
   type: z.enum(["text", "email", "button", "checkbox"]),
   fieldName: z.string(),
-  placeholder: z.string().nullable(),
-  required: z.boolean().nullable(),
+  placeholder: z.string().default(""),
+  required: z.boolean(),
 });
 
 export const FormStructureSchema = z.object({
-  contentOrder: z.string().nullable(),
-  fieldGap: z.number().nullable(),
-  bannerGap: z.number().nullable(),
-  inputTextColor: z.string().nullable(),
-  inputBGColor: z.string().nullable(),
-  inputBorderColor: z.string().nullable(),
-  inputBorderRadius: z.string().nullable(),
-  inputFontSize: z.number().nullable(),
-  inputPadding: z.string().nullable(),
-  structures: z.array(FormStructureFieldSchema).nullable(),
+  contentOrder: z.string().default(""),
+  fieldGap: z.number(),
+  bannerGap: z.number(),
+  inputTextColor: z.string().default(""),
+  inputBGColor: z.string().default(""),
+  inputBorderColor: z.string().default(""),
+  inputBorderRadius: z.string().default(""),
+  inputFontSize: z.number(),
+  inputPadding: z.string().default(""),
+  structures: z.array(FormStructureFieldSchema),
 });
 
 export const EmailSignupBannerTemplateSchema = z.object({
   template: z.literal(0),
   banner_text: BannerTextSchema,
-  bg_type: z.union([z.literal(0), z.literal(1), z.literal(2)]).nullable(),
-  bg_color: z.string().nullable(),
-  font_size_button: z.number().nullable(),
-  font_color: z.string().nullable(),
-  font_family: z.string().nullable(),
-  act_content_color: z.string().nullable().default("#000000"),
-  btn_text_color: z.string().nullable().default("#FFFFFF"),
-  btn_style: z.number().int().min(0).max(8).nullable().default(0),
-  button_styles: ButtonStylesSchema.nullable(),
-  btn_settings: BtnSettingsSchema.nullable(),
-  content_gap: z.number().nullable().default(16),
-  content_order: z.string().nullable(),
-  form_structure: FormStructureSchema.nullable(),
+  bg_type: z.union([z.literal(0), z.literal(1), z.literal(2)]),
+  bg_color: z.string().default(""),
+  font_size_button: z.number(),
+  font_color: z.string().default(""),
+  font_family: z.string().default(""),
+  act_content_color: z.string().default("#000000"),
+  btn_text_color: z.string().default("#FFFFFF"),
+  btn_style: z.number().int().min(0).max(8).default(0),
+  button_styles: ButtonStylesSchema,
+  btn_settings: BtnSettingsSchema,
+  content_gap: z.number().default(16),
+  content_order: z.string().default(""),
+  form_structure: FormStructureSchema,
 });
 
 export const EmailSignupBannerSchema = z.object({
   banner_type: z.literal(1),
-  position: z.union([z.literal(0), z.literal(1)]).nullable(),
+  position: z.union([z.literal(0), z.literal(1)]),
   name: z.string(),
   close_button: z.boolean(),
-  btn_close_color: z.string().nullable().default("#FFFFFF"),
-  show_device: z.enum(["all", "mobile", "desktop"]).nullable(),
-  font_scale_enabled: z.boolean().nullable().default(false),
-  font_scale: z.number().min(-100).max(100).nullable().default(0),
+  btn_close_color: z.string().default("#FFFFFF"),
+  show_device: z.enum(["all", "mobile", "desktop"]),
+  font_scale_enabled: z.boolean().default(false),
+  font_scale: z.number().min(-100).max(100).default(0),
   banner_templates: z.array(EmailSignupBannerTemplateSchema).length(1),
 });
 

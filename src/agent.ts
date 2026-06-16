@@ -7,8 +7,9 @@ import {
   extractIntent,
   generateConfig,
   generateConfigTools,
-  generateConfigRouter,
   extractGeneratedConfig,
+  shouldUseGenerateTool,
+  shouldRegenerate,
 } from "./utils/nodes.js";
 
 export const graph = new StateGraph(BannerAgentState)
@@ -25,11 +26,14 @@ export const graph = new StateGraph(BannerAgentState)
   ])
   .addEdge("ask_user", "classify_intent")
   .addEdge("extract_intent", "generate_config")
-  .addConditionalEdges("generate_config", generateConfigRouter, [
-    "generate_config",
+  .addConditionalEdges("generate_config", shouldUseGenerateTool, [
     "generate_config_tools",
     "extract_configurations",
   ])
   .addEdge("generate_config_tools", "generate_config")
+  .addConditionalEdges("extract_configurations", shouldRegenerate, [
+    "generate_config",
+    END,
+  ])
   .addEdge("extract_configurations", END)
   .compile();

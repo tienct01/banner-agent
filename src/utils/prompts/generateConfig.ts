@@ -38,6 +38,7 @@ Your task is to generate a valid JSON configuration object for a banner based on
 
 ## Tools usage guides
 - Use tool to select images relate and appropriate with banner.
+- If use unsplash image selector tool, you need to decide the image get with unsplash in urls
 `);
 
 const GenerateConfigUserTemplate =

@@ -5,7 +5,9 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "visualize": "npx @langchain/langgraph-cli dev --port 9909"
+    "visualize": "npx @langchain/langgraph-cli dev --port 9909",
+    "lint": "eslint \"{src,test}/**/*.ts\"",
+    "lint:fix": "eslint \"{src,test}/**/*.ts\" --fix"
   },
   "keywords": [],
   "author": "",
@@ -14,9 +16,13 @@
     "#banner_docs/*": "./banner_docs/*"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.4",
     "@types/node": "^25.9.1",
+    "eslint": "^9.39.4",
+    "globals": "^17.6.0",
     "tsc-alias": "^1.8.17",
-    "typescript": "^6.0.3"
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.61.1"
   },
   "dependencies": {
     "@langchain/classic": "^1.0.34",

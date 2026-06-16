@@ -61,7 +61,7 @@ async function testRetryRouter() {
     await generateConfigRouter(
       baseState({
         messages: [
-          new AIMessage("<generated_json>{\"ok\":true}<\/generated_json>"),
+          new AIMessage("<generated_json>{\"ok\":true}</generated_json>"),
         ],
         validationErr: "",
       }),

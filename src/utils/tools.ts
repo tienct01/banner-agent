@@ -1,33 +1,28 @@
 import { tool } from "@langchain/core/tools";
+import { interrupt } from "@langchain/langgraph";
 import { z } from "zod";
-import * as readline from "readline";
 import { getUnsplashClient } from "../lib/unsplash.js";
 
 const askUserSchema = z.object({
   question: z.string().describe("The question to ask the user"),
 });
 
-function promptUser(question: string): Promise<string> {
-  const rl = readline.createInterface({
-    input: process.stdin,
-    output: process.stdout,
-  });
-
-  return new Promise((resolve) => {
-    rl.question(`\n[AGENT] ${question}\n> `, (answer) => {
-      rl.close();
-      resolve(answer.trim());
-    });
-  });
-}
-
 export const askUserTool = tool(
   async ({ question }) => {
-    const answer = await promptUser(question);
-    if (!answer) {
+    // Pause the graph and surface the question to the caller.
+    // When resumed, interrupt() returns the user's response.
+    const answer = interrupt({ question }) as string;
+
+    if (typeof answer !== "string") {
       return "User did not provide an answer.";
     }
-    return answer;
+
+    const trimmedAnswer = answer.trim();
+    if (!trimmedAnswer) {
+      return "User did not provide an answer.";
+    }
+
+    return trimmedAnswer;
   },
   {
     name: "ask_user",

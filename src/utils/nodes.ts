@@ -13,14 +13,14 @@ import {
   extractGeneratedJsonObject,
   loadMarkdownFile,
 } from "./helper.js";
-import { AnnouncementSingleBannerSchema } from "src/schemas/single_banner.js";
-import { AnnouncementRotateBannerSchema } from "src/schemas/rotate_banner.js";
-import { AnnouncementRunningBannerSchema } from "src/schemas/running_banner.js";
-import { AnnouncementCountdownBannerSchema } from "src/schemas/countdown_banner.js";
-import { DiscountBannerSchema } from "src/schemas/discount_banner.js";
-import { EmailSignupBannerSchema } from "src/schemas/email_signup_banner.js";
-import { FreeShippingBannerSchema } from "src/schemas/free_shipping_banner.js";
-import { MultiBannerSchema } from "src/schemas/multi_banner.js";
+import { AnnouncementSingleBannerSchema } from "../schemas/single_banner.js";
+import { AnnouncementRotateBannerSchema } from "../schemas/rotate_banner.js";
+import { AnnouncementRunningBannerSchema } from "../schemas/running_banner.js";
+import { AnnouncementCountdownBannerSchema } from "../schemas/countdown_banner.js";
+import { DiscountBannerSchema } from "../schemas/discount_banner.js";
+import { EmailSignupBannerSchema } from "../schemas/email_signup_banner.js";
+import { FreeShippingBannerSchema } from "../schemas/free_shipping_banner.js";
+import { MultiBannerSchema } from "../schemas/multi_banner.js";
 
 const BANNER_TYPE_TO_DOC: Record<string, string> = {
   "announcement-single": "announcement-single.md",
@@ -202,8 +202,8 @@ export const extractGeneratedConfig: GraphNode<State> = async (state) => {
   try {
     const lastMessage = state.messages.at(-1);
 
-    if(!(lastMessage instanceof AIMessage)) {
-      throw "Something broken"
+    if (!(lastMessage instanceof AIMessage)) {
+      throw new Error("Expected the last message to be an AI message.");
     }
 
     let contentStr = "";
@@ -234,7 +234,7 @@ export const extractGeneratedConfig: GraphNode<State> = async (state) => {
         messages: [new HumanMessage(`${z.prettifyError(error)}`)],
         generatedResult: {
           isFailed: true,
-        }
+        },
       };
     }
 
@@ -243,8 +243,8 @@ export const extractGeneratedConfig: GraphNode<State> = async (state) => {
 };
 
 export const shouldRegenerate: ConditionalEdgeRouter<State> = async (state) => {
-  if(state.generatedResult.isFailed) {
+  if (state.generatedResult.isFailed) {
     return "generate_config";
   }
   return END;
-}
+};

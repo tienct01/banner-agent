@@ -1,3 +1,5 @@
+import { configDotenv } from "dotenv";
+configDotenv();
 import { END, START, StateGraph } from "@langchain/langgraph";
 import { BannerAgentState } from "./utils/state.js";
 import {
@@ -11,8 +13,10 @@ import {
   shouldUseGenerateTool,
   shouldRegenerate,
 } from "./utils/nodes.js";
+import { RedisSaver } from "@langchain/langgraph-checkpoint-redis";
+import { redisClient } from "./lib/redis.js";
 
-export const graph = new StateGraph(BannerAgentState)
+export const builder = new StateGraph(BannerAgentState)
   .addNode("classify_intent", classifyIntent)
   .addNode("ask_user", classifyTools)
   .addNode("extract_intent", extractIntent)
@@ -34,6 +38,8 @@ export const graph = new StateGraph(BannerAgentState)
   .addConditionalEdges("extract_configurations", shouldRegenerate, [
     "generate_config",
     END,
-  ])
-  .addEdge("extract_configurations", END)
-  .compile();
+  ]);
+
+const checkpointer = new RedisSaver(redisClient);
+
+export const graph = builder.compile({ checkpointer });

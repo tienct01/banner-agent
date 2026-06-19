@@ -5,7 +5,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "visualize": "npx @langchain/langgraph-cli dev --port 9909",
+    "visualize": "langgraphjs dev",
     "lint": "eslint \"{src,test}/**/*.ts\"",
     "lint:fix": "eslint \"{src,test}/**/*.ts\" --fix"
   },
@@ -30,6 +30,7 @@
     "@langchain/core": "^1.1.48",
     "@langchain/langgraph": "^1.3.5",
     "@langchain/langgraph-checkpoint-redis": "^1.0.10",
+    "@langchain/langgraph-cli": "^1.3.1",
     "@langchain/langgraph-sdk": "^1.9.23",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",

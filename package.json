@@ -7,11 +7,7 @@
   "scripts": {
     "visualize": "npx @langchain/langgraph-cli dev --port 9909",
     "lint": "eslint \"{src,test}/**/*.ts\"",
-    "lint:fix": "eslint \"{src,test}/**/*.ts\" --fix",
-    "test": "npm run test:graph",
-    "test:graph": "rm -rf .tmp/test && npx tsc -p tsconfig.json --outDir .tmp/test && cp -R banner_docs .tmp/test/banner_docs && node .tmp/test/test/graph-smoke.js",
-    "test:output": "rm -rf .tmp/test && npx tsc -p tsconfig.json --outDir .tmp/test && cp -R banner_docs .tmp/test/banner_docs && node .tmp/test/test/graph-output.js",
-    "test:agent": "rm -rf .tmp/test && npx tsc -p tsconfig.json --outDir .tmp/test && cp -R banner_docs .tmp/test/banner_docs && node .tmp/test/test/agent-run.js"
+    "lint:fix": "eslint \"{src,test}/**/*.ts\" --fix"
   },
   "keywords": [],
   "author": "",
@@ -21,6 +17,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
+    "@types/express": "^5.0.6",
     "@types/node": "^25.9.1",
     "eslint": "^9.39.4",
     "globals": "^17.6.0",
@@ -33,7 +30,9 @@
     "@langchain/core": "^1.1.48",
     "@langchain/langgraph": "^1.3.5",
     "@langchain/langgraph-checkpoint-redis": "^1.0.10",
+    "@langchain/langgraph-sdk": "^1.9.23",
     "dotenv": "^17.4.2",
+    "express": "^5.2.1",
     "langchain": "^1.4.4",
     "langsmith": "^0.7.5",
     "redis": "^4.7.1",

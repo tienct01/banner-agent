@@ -1,6 +1,4 @@
 import { TextLoader } from "@langchain/classic/document_loaders/fs/text";
-import type { State } from "./state.js";
-import { RemoveMessage } from "@langchain/core/messages";
 
 export async function loadMarkdownFile(path: string): Promise<string> {
   const loader = new TextLoader(path);
@@ -18,14 +16,6 @@ export async function loadMarkdownFile(path: string): Promise<string> {
   }
   return doc.pageContent;
 }
-
-export const clearMessages = async (state: State) => {
-  return {
-    messages: state.messages.map(
-      (message) => new RemoveMessage({ id: message.id! }),
-    ),
-  };
-};
 
 export function extractGeneratedJsonObject<T>(
   text: string

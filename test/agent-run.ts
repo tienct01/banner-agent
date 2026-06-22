@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { HumanMessage } from "@langchain/core/messages";
-import { graph } from "../src/agent.js";
-import { redisClient } from "../src/lib/redis.js";
+import { graph } from "../src/agent/agent.js";
+import { redisClient } from "../src/agent/lib/redis.js";
 import { configDotenv } from "dotenv";
 import * as z from "zod";
 configDotenv();

@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { END, START } from "@langchain/langgraph";
-import { graph } from "../src/agent.js";
+import { graph } from "../src/agent/agent.js";
+
+type GraphEdge = { source: string; target: string };
 
 const expectedNodes = [
   START,
@@ -36,7 +38,7 @@ async function main() {
 
   for (const [source, target] of expectedEdges) {
     const hasEdge = drawable.edges.some(
-      (edge) => edge.source === source && edge.target === target,
+      (edge: GraphEdge) => edge.source === source && edge.target === target,
     );
 
     assert.ok(hasEdge, `Missing graph edge: ${source} -> ${target}`);

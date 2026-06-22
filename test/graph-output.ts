@@ -1,7 +1,9 @@
 import { HumanMessage } from "@langchain/core/messages";
 import { END, START } from "@langchain/langgraph";
 import * as z from "zod";
-import { graph } from "../src/agent.js";
+import { graph } from "../src/agent/agent.js";
+
+type GraphEdge = { source: string; target: string };
 
 const testInput = process.env.TEST_INPUT;
 
@@ -49,7 +51,7 @@ function printJson(label: string, value: unknown) {
 async function printTopology() {
   const drawable = await graph.getGraphAsync({});
   const nodes = Object.keys(drawable.nodes);
-  const edges = drawable.edges.map((edge) => ({
+  const edges = drawable.edges.map((edge: GraphEdge) => ({
     source: edge.source,
     target: edge.target,
   }));

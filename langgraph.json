@@ -1,9 +1,10 @@
 {
-  "dependencies": [
-    "."
-  ],
+  "$schema": "https://langgra.ph/schema.json",
+  "dependencies": ["."],
   "graphs": {
-    "banner_agent": "./src/agent.ts:graph"
+    "banner_agent": "./src/agent/agent.ts:graph"
   },
-  "env": "./.env"
+  "http": {
+    "disable_meta": false
+  }
 }

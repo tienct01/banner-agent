@@ -1,36 +1,6 @@
 import { tool } from "@langchain/core/tools";
-import { interrupt } from "@langchain/langgraph";
 import { z } from "zod";
 import { getUnsplashClient } from "../lib/unsplash.js";
-
-const askUserSchema = z.object({
-  question: z.string().describe("The question to ask the user"),
-});
-
-export const askUserTool = tool(
-  async ({ question }) => {
-    // Pause the graph and surface the question to the caller.
-    // When resumed, interrupt() returns the user's response.
-    const answer = interrupt({ question }) as string;
-
-    if (typeof answer !== "string") {
-      return "User did not provide an answer.";
-    }
-
-    const trimmedAnswer = answer.trim();
-    if (!trimmedAnswer) {
-      return "User did not provide an answer.";
-    }
-
-    return trimmedAnswer;
-  },
-  {
-    name: "ask_user",
-    description:
-      "Ask the user a question and get their response. Use this when you need clarification or additional information from the user, such as confirming the banner type, collecting missing details, or validating your understanding of the request.",
-    schema: askUserSchema,
-  },
-);
 
 const unsplashSearchImageSchema = z.object({
   query: z

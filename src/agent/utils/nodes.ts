@@ -1,18 +1,19 @@
 import z, { ZodError } from "zod";
 import { openAiModel } from "./models.js";
-import { askUserTool, searchUnsplashImagesTool } from "./tools.js";
+import { searchUnsplashImagesTool } from "./tools.js";
 import type { State } from "./state.js";
-import { END, type ConditionalEdgeRouter, type GraphNode } from "@langchain/langgraph";
+import {
+  END,
+  interrupt,
+  type ConditionalEdgeRouter,
+  type GraphNode,
+} from "@langchain/langgraph";
 import { ToolNode } from "@langchain/langgraph/prebuilt";
 import { buildClassifyIntentPrompt } from "./prompts/classifyIntent.js";
 import { buildGenerateConfigPrompt } from "./prompts/generateConfig.js";
 import { AIMessage, HumanMessage } from "@langchain/core/messages";
 import path from "node:path";
-import {
-  clearMessages,
-  extractGeneratedJsonObject,
-  loadMarkdownFile,
-} from "./helper.js";
+import { extractGeneratedJsonObject, loadMarkdownFile } from "./helper.js";
 import { AnnouncementSingleBannerSchema } from "../schemas/single_banner.js";
 import { AnnouncementRotateBannerSchema } from "../schemas/rotate_banner.js";
 import { AnnouncementRunningBannerSchema } from "../schemas/running_banner.js";
@@ -67,33 +68,60 @@ const STYLE_THEMES_DIR = path.resolve(
   "../../banner_docs/style-themes",
 );
 
-const modelWithTools = openAiModel.bindTools([askUserTool]);
+const DEFAULT_CLARIFICATION_QUESTION =
+  "Could you clarify the banner type and style you want?";
 
-export const classifyTools = new ToolNode([askUserTool]);
+const ClarificationDecisionSchema = z.object({
+  needsClarification: z
+    .boolean()
+    .describe("Whether the user must answer one clarifying question."),
+  question: z
+    .string()
+    .describe(
+      "The one question to ask when clarification is needed. Empty when no clarification is needed.",
+    ),
+});
+
+const clarificationDecisionModel = openAiModel.withStructuredOutput(
+  ClarificationDecisionSchema,
+);
 
 export const classifyIntent: GraphNode<State> = async (state) => {
   const classifyPrompt = await buildClassifyIntentPrompt(state.userInput);
-  const response = await modelWithTools.invoke([
+  const response = await clarificationDecisionModel.invoke([
     ...classifyPrompt,
     ...state.messages,
   ]);
+  const question = response.needsClarification
+    ? response.question.trim() || DEFAULT_CLARIFICATION_QUESTION
+    : "";
 
   return {
-    messages: [response],
+    clarificationQuestion: question,
+    messages: question ? [new AIMessage(question)] : [],
   };
 };
 
 export function shouldAskUser(state: State) {
-  const lastMessage = state.messages[state.messages.length - 1];
-  if (
-    lastMessage instanceof AIMessage &&
-    lastMessage.tool_calls &&
-    lastMessage.tool_calls.length > 0
-  ) {
+  if (state.clarificationQuestion?.trim()) {
     return "ask_user";
   }
   return "extract_intent";
 }
+
+export const askUser: GraphNode<State> = async (state) => {
+  const question =
+    state.clarificationQuestion?.trim() || DEFAULT_CLARIFICATION_QUESTION;
+
+  const answer = interrupt<{ question: string }, unknown>({ question });
+  const answerText =
+    typeof answer === "string" ? answer : JSON.stringify(answer ?? "");
+
+  return {
+    clarificationQuestion: "",
+    messages: [new HumanMessage(answerText)],
+  };
+};
 
 const ClassifyIntentSchema = z.object({
   bannerType: z.enum([
@@ -151,7 +179,6 @@ export const extractIntent: GraphNode<State> = async (state) => {
     CONFIG_SCHEMA_MAP[response.bannerType] ?? AnnouncementSingleBannerSchema;
 
   return {
-    ...(await clearMessages(state)),
     bannerType: response.bannerType,
     styleTheme: response.styleTheme,
     configDoc,
@@ -189,9 +216,9 @@ export const generateConfigTools = new ToolNode([searchUnsplashImagesTool]);
 export const shouldUseGenerateTool: ConditionalEdgeRouter<State> = async (
   state,
 ) => {
-  const lastMessage = state.messages.at(-1);
+  const lastMessage = state.messages.at(-1) as AIMessage;
 
-  if (lastMessage instanceof AIMessage && lastMessage.tool_calls?.length) {
+  if (lastMessage?.tool_calls?.length) {
     return "generate_config_tools";
   }
 
@@ -202,9 +229,7 @@ export const extractGeneratedConfig: GraphNode<State> = async (state) => {
   try {
     const lastMessage = state.messages.at(-1);
 
-    if (!(lastMessage instanceof AIMessage)) {
-      throw new Error("Expected the last message to be an AI message.");
-    }
+    if(!lastMessage) throw ("Something broken !"); 
 
     let contentStr = "";
     if (typeof lastMessage.content === "string") {

@@ -3,8 +3,8 @@ configDotenv();
 import { END, START, StateGraph } from "@langchain/langgraph";
 import { BannerAgentState } from "./utils/state.js";
 import {
+  askUser,
   classifyIntent,
-  classifyTools,
   shouldAskUser,
   extractIntent,
   generateConfig,
@@ -18,7 +18,7 @@ import { redisClient } from "./lib/redis.js";
 
 export const builder = new StateGraph(BannerAgentState)
   .addNode("classify_intent", classifyIntent)
-  .addNode("ask_user", classifyTools)
+  .addNode("ask_user", askUser)
   .addNode("extract_intent", extractIntent)
   .addNode("generate_config", generateConfig)
   .addNode("generate_config_tools", generateConfigTools)

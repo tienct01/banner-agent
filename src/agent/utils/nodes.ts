@@ -1,10 +1,9 @@
 import z, { ZodError } from "zod";
 import { openAiModel } from "./models.js";
-import { searchUnsplashImagesTool } from "./tools.js";
+import { askUserTool, searchUnsplashImagesTool } from "./tools.js";
 import type { State } from "./state.js";
 import {
   END,
-  interrupt,
   type ConditionalEdgeRouter,
   type GraphNode,
 } from "@langchain/langgraph";
@@ -68,60 +67,29 @@ const STYLE_THEMES_DIR = path.resolve(
   "../../banner_docs/style-themes",
 );
 
-const DEFAULT_CLARIFICATION_QUESTION =
-  "Could you clarify the banner type and style you want?";
-
-const ClarificationDecisionSchema = z.object({
-  needsClarification: z
-    .boolean()
-    .describe("Whether the user must answer one clarifying question."),
-  question: z
-    .string()
-    .describe(
-      "The one question to ask when clarification is needed. Empty when no clarification is needed.",
-    ),
-});
-
-const clarificationDecisionModel = openAiModel.withStructuredOutput(
-  ClarificationDecisionSchema,
-);
-
 export const classifyIntent: GraphNode<State> = async (state) => {
   const classifyPrompt = await buildClassifyIntentPrompt(state.userInput);
-  const response = await clarificationDecisionModel.invoke([
+  const response = await openAiModel.bindTools([askUserTool]).invoke([
     ...classifyPrompt,
     ...state.messages,
   ]);
-  const question = response.needsClarification
-    ? response.question.trim() || DEFAULT_CLARIFICATION_QUESTION
-    : "";
 
   return {
-    clarificationQuestion: question,
-    messages: question ? [new AIMessage(question)] : [],
+    messages: [response],
   };
 };
 
-export function shouldAskUser(state: State) {
-  if (state.clarificationQuestion?.trim()) {
-    return "ask_user";
+export function shouldUseClassifyTool(state: State) {
+  const lastMessage = state.messages.at(-1) as AIMessage;
+
+  if (lastMessage?.tool_calls?.length) {
+    return "classify_intent_tools";
   }
+
   return "extract_intent";
 }
 
-export const askUser: GraphNode<State> = async (state) => {
-  const question =
-    state.clarificationQuestion?.trim() || DEFAULT_CLARIFICATION_QUESTION;
-
-  const answer = interrupt<{ question: string }, unknown>({ question });
-  const answerText =
-    typeof answer === "string" ? answer : JSON.stringify(answer ?? "");
-
-  return {
-    clarificationQuestion: "",
-    messages: [new HumanMessage(answerText)],
-  };
-};
+export const classifyIntentTools = new ToolNode([askUserTool]);
 
 const ClassifyIntentSchema = z.object({
   bannerType: z.enum([

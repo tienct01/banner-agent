@@ -62,6 +62,7 @@ Instructions:
 - If banner type does not have in list, then you can clarify again
 - If the user prompt does not suggest any style keywords (e.g., "minimal", "bold", "luxury"), or if the style is ambiguous, ask the user for clarification.
 - If the user prompt is completely unrelated to banner creation, ask the user what banner they want.
+- If the ask_user tool is available, ask clarification by calling that tool instead of replying directly.
 
 Clarification guide:
 - Ask for clarification when: the prompt is ambiguous, the banner type cannot be determined, or the style preference is unclear.

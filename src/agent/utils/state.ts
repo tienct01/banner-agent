@@ -9,7 +9,6 @@ export const BannerAgentState = new StateSchema({
   configDoc: z.string(),
   styleThemeDoc: z.string(),
   configSchema: z.custom<z.ZodType>(),
-  clarificationQuestion: z.string().optional(),
   validationErr: z.string().optional(),
   generatedResult: z
     .object({

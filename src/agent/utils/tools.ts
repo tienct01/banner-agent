@@ -1,6 +1,28 @@
 import { tool } from "@langchain/core/tools";
+import { interrupt } from "@langchain/langgraph";
 import { z } from "zod";
 import { getUnsplashClient } from "../lib/unsplash.js";
+
+const askUserSchema = z.object({
+  question: z
+    .string()
+    .min(1)
+    .describe("The single clarification question to ask the user."),
+});
+
+export const askUserTool = tool(
+  async ({ question }) => {
+    const answer = interrupt<{ question: string }, unknown>({ question });
+
+    return typeof answer === "string" ? answer : JSON.stringify(answer ?? "");
+  },
+  {
+    name: "ask_user",
+    description:
+      "Ask the user one clarification question when the banner request is ambiguous or missing banner type/style details.",
+    schema: askUserSchema,
+  },
+);
 
 const unsplashSearchImageSchema = z.object({
   query: z

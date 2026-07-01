@@ -1,6 +1,4 @@
 import {
-  ChatPromptTemplate,
-  HumanMessagePromptTemplate,
   SystemMessagePromptTemplate,
 } from "@langchain/core/prompts";
 import type z from "zod";
@@ -41,11 +39,7 @@ Your task is to generate a valid JSON configuration object for a banner based on
 - If use unsplash image selector tool, you need to decide the image get with unsplash in urls
 `);
 
-const GenerateConfigUserTemplate =
-  HumanMessagePromptTemplate.fromTemplate(`User request: {userInput}`);
-
 export const buildGenerateConfigPrompt = async (params: {
-  userInput: string;
   bannerType: string;
   styleTheme: string;
   configDoc: string;
@@ -60,13 +54,5 @@ export const buildGenerateConfigPrompt = async (params: {
     schema: params.schema.toJSONSchema()
   });
 
-  const userPrompt = await GenerateConfigUserTemplate.format({
-    userInput: params.userInput,
-  });
-
-  const messages = [systemPrompt, userPrompt];
-
-  const chatTemplate = ChatPromptTemplate.fromMessages(messages);
-  return await chatTemplate.formatMessages({});
+  return [systemPrompt];
 };
-

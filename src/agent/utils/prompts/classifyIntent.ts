@@ -1,6 +1,4 @@
 import {
-  ChatPromptTemplate,
-  HumanMessagePromptTemplate,
   SystemMessagePromptTemplate,
 } from "@langchain/core/prompts";
 import path, { dirname } from "path";
@@ -71,23 +69,11 @@ Clarification guide:
 - Ask just one question each time you ask, and use Label of above list to ask
 `);
 
-const UserPromptTemplate =
-  HumanMessagePromptTemplate.fromTemplate(`User prompt: {input}`);
-
-export async function buildClassifyIntentPrompt(userInput: string) {
+export async function buildClassifyIntentPrompt() {
   const classifyPrompt = await ClassifyPromptTemplate.format({
     bannerTypeDocs: bannerTypeOverviewMd,
     styleThemeDocs: styleThemeOverviewMd,
   });
 
-  const userPrompt = await UserPromptTemplate.format({
-    input: userInput,
-  });
-
-  const chatTemplate = ChatPromptTemplate.fromMessages([
-    classifyPrompt,
-    userPrompt,
-  ]);
-
-  return await chatTemplate.formatMessages({});
+  return [classifyPrompt];
 }

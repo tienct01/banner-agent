@@ -59,16 +59,16 @@ const CONFIG_SCHEMA_MAP: Record<string, z.ZodType> = {
 
 const CONFIG_DOCS_DIR = path.resolve(
   import.meta.dirname,
-  "../../banner_docs/configuration",
+  "../../../banner_docs/configuration",
 );
 
 const STYLE_THEMES_DIR = path.resolve(
   import.meta.dirname,
-  "../../banner_docs/style-themes",
+  "../../../banner_docs/style-themes",
 );
 
 export const classifyIntent: GraphNode<State> = async (state) => {
-  const classifyPrompt = await buildClassifyIntentPrompt(state.userInput);
+  const classifyPrompt = await buildClassifyIntentPrompt();
   const response = await openAiModel.bindTools([askUserTool]).invoke([
     ...classifyPrompt,
     ...state.messages,
@@ -121,7 +121,7 @@ const modelWithStructuredOutput =
   openAiModel.withStructuredOutput(ClassifyIntentSchema);
 
 export const extractIntent: GraphNode<State> = async (state) => {
-  const classifyPrompt = await buildClassifyIntentPrompt(state.userInput);
+  const classifyPrompt = await buildClassifyIntentPrompt();
   const response = await modelWithStructuredOutput.invoke([
     ...classifyPrompt,
     ...state.messages,
@@ -157,7 +157,6 @@ export const extractIntent: GraphNode<State> = async (state) => {
 
 export const generateConfig: GraphNode<State> = async (state) => {
   const promptParams = {
-    userInput: state.userInput,
     bannerType: state.bannerType ?? "announcement-single",
     styleTheme: state.styleTheme ?? "minimal",
     configDoc: state.configDoc ?? "",

@@ -4,8 +4,8 @@ import { END, START, StateGraph } from "@langchain/langgraph";
 import { BannerAgentState } from "./utils/state.js";
 import {
   classifyIntent,
-  classifyIntentTools,
-  shouldUseClassifyTool,
+  askUser,
+  shouldAskUser,
   extractIntent,
   generateConfig,
   generateConfigTools,
@@ -14,21 +14,21 @@ import {
   shouldRegenerate,
 } from "./utils/nodes.js";
 import { RedisSaver } from "@langchain/langgraph-checkpoint-redis";
-import { redisClient } from "./lib/redis.js";
+import { redisClient } from "src/lib/redis.js";
 
 export const builder = new StateGraph(BannerAgentState)
   .addNode("classify_intent", classifyIntent)
-  .addNode("classify_intent_tools", classifyIntentTools)
+  .addNode("ask_user", askUser)
   .addNode("extract_intent", extractIntent)
   .addNode("generate_config", generateConfig)
   .addNode("generate_config_tools", generateConfigTools)
   .addNode("extract_configurations", extractGeneratedConfig)
   .addEdge(START, "classify_intent")
-  .addConditionalEdges("classify_intent", shouldUseClassifyTool, [
-    "classify_intent_tools",
+  .addConditionalEdges("classify_intent", shouldAskUser, [
+    "ask_user",
     "extract_intent",
   ])
-  .addEdge("classify_intent_tools", "classify_intent")
+  .addEdge("ask_user", "classify_intent")
   .addEdge("extract_intent", "generate_config")
   .addConditionalEdges("generate_config", shouldUseGenerateTool, [
     "generate_config_tools",

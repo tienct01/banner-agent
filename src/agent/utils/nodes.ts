@@ -1,9 +1,10 @@
 import z, { ZodError } from "zod";
 import { openAiModel } from "./models.js";
-import { askUserTool, searchUnsplashImagesTool } from "./tools.js";
+import { searchUnsplashImagesTool } from "./tools.js";
 import type { State } from "./state.js";
 import {
   END,
+  interrupt,
   type ConditionalEdgeRouter,
   type GraphNode,
 } from "@langchain/langgraph";
@@ -67,29 +68,62 @@ const STYLE_THEMES_DIR = path.resolve(
   "../../../banner_docs/style-themes",
 );
 
+const ClarificationQuestionSchema = z.object({
+  question: z
+    .string()
+    .describe(
+      "The clarification question to ask, or an empty string if no clarification is needed.",
+    ),
+  choices: z
+    .array(z.string())
+    .describe(
+      "Possible choices the user can choose, or an empty array if no clarification is needed.",
+    ),
+});
+
 export const classifyIntent: GraphNode<State> = async (state) => {
   const classifyPrompt = await buildClassifyIntentPrompt();
-  const response = await openAiModel.bindTools([askUserTool]).invoke([
+  const structuredOutputModel = openAiModel.withStructuredOutput(
+    ClarificationQuestionSchema,
+  );
+  const response = await structuredOutputModel.invoke([
     ...classifyPrompt,
     ...state.messages,
   ]);
+  const question = response.question.trim();
 
   return {
-    messages: [response],
+    ...(question ? { messages: [new AIMessage(question)] } : {}),
+    clarificationQuestion: {
+      question,
+      choices: response.choices,
+    },
   };
 };
 
-export function shouldUseClassifyTool(state: State) {
-  const lastMessage = state.messages.at(-1) as AIMessage;
+export const askUser: GraphNode<State> = async (state) => {
+  const clarificationQuestion = state.clarificationQuestion;
 
-  if (lastMessage?.tool_calls?.length) {
-    return "classify_intent_tools";
+  const answer = interrupt({
+    question: clarificationQuestion?.question.trim(),
+    choices: clarificationQuestion?.choices,
+  });
+
+  const answerText =
+    typeof answer === "string" ? answer : JSON.stringify(answer ?? "");
+
+  return {
+    messages: [new HumanMessage(answerText)],
+  };
+};
+
+export const shouldAskUser: ConditionalEdgeRouter<State> = async (state) => {
+  if (state.clarificationQuestion?.question.trim()) {
+    return "ask_user";
   }
 
   return "extract_intent";
-}
-
-export const classifyIntentTools = new ToolNode([askUserTool]);
+};
 
 const ClassifyIntentSchema = z.object({
   bannerType: z.enum([
@@ -196,7 +230,7 @@ export const extractGeneratedConfig: GraphNode<State> = async (state) => {
   try {
     const lastMessage = state.messages.at(-1);
 
-    if(!lastMessage) throw ("Something broken !"); 
+    if (!lastMessage) throw "Something broken !";
 
     let contentStr = "";
     if (typeof lastMessage.content === "string") {
